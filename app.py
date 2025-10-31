@@ -139,22 +139,39 @@ tfidf_vectorizer, kmeans_model, knn_model, sbert_embeddings = load_models()
 # ----------------------
 # 3. Navigasi Sidebar
 # ----------------------
-with st.sidebar:
-    st.image("Logo.png", width=120) if os.path.exists('Logo.png') else st.title("Rekomendasi Buku")
-    
-    if HAS_OPTION_MENU:
-        selected_page = option_menu(
-            menu_title="Menu Utama",
-            options=["Beranda", "Rekomendasi", "Analisis Teks", "About", "Feedback"],
-            icons=["house-door-fill", "star-fill", "search", "info-circle-fill", "chat-left-text-fill"],
-            menu_icon="compass-fill",
-            default_index=0
-        )
-    else:
-        selected_page = st.radio("Menu Utama", ["Beranda", "Rekomendasi", "Analisis Teks", "About", "Feedback"])
+# [TAMBAHKAN INI DI ATAS, SETELAH st.set_page_config]
 
-    st.sidebar.markdown("---")
-    st.sidebar.caption("Dibuat oleh Nanda | 2025")
+# Cek jika logo ada
+if os.path.exists('Logo.png'):
+    logo_col, title_col = st.columns([1, 6])
+    with logo_col:
+        st.image("Logo.png", width=100)
+    with title_col:
+        st.title("Sistem Rekomendasi Buku")
+else:
+    st.title("📚 Sistem Rekomendasi Buku")
+
+# Menu Navigasi Horizontal
+selected_page = option_menu(
+    menu_title=None, # Sembunyikan judul menu
+    options=["Beranda", "Rekomendasi", "Analisis Teks", "About", "Feedback"],
+    icons=["house-door-fill", "star-fill", "search", "info-circle-fill", "chat-left-text-fill"],
+    orientation="horizontal", # Ini kuncinya!
+    styles={
+        "container": {"padding": "0!important", "background-color": "#f0f2f6"},
+        "icon": {"color": "#16a085", "font-size": "18px"}, 
+        "nav-link": {
+            "font-size": "14px", 
+            "text-align": "center", 
+            "margin":"0px 5px", 
+            "--hover-color": "#eee"
+        },
+        "nav-link-selected": {"background-color": "#16a085", "color": "white"},
+    }
+)
+
+st.sidebar.markdown("---")
+st.sidebar.caption("Dibuat oleh Nanda | 2025")
 
 # ----------------------
 # 4. Konten Halaman
@@ -164,76 +181,139 @@ with st.sidebar:
 # Halaman 1: BERANDA
 # (Kode ini tidak berubah)
 # ===============================================
-if selected_page == "Beranda":
+# [GANTI BAGIAN INI DI app.py ANDA]
+
+elif selected_page == "Beranda":
+    
+    # 1. Kotak Info Biru (Mirip target)
+    st.info("ℹ️ **Selamat Datang di Sistem Rekomendasi Buku!** Temukan buku favorit Anda berikutnya di sini.")
+
+    # 2. Search Bar (Mirip target)
+    st.text_input(
+        "Search, what are you looking for?", 
+        placeholder="Cari berdasarkan judul, penulis, atau topik...",
+        key="home_search"
+    )
+    
+    st.write("") # Memberi spasi
+    
+    # 3. Grid Ikon (Menggunakan HTML/CSS kustom untuk meniru tampilan)
+    
+    # Definisikan CSS untuk tombol-tombol ikon
+    # Ini adalah 'sihir' untuk membuat tampilannya mirip
     st.markdown("""
-        <div style='text-align:center; padding: 20px;'>
-            <h1>Sistem Rekomendasi Buku</h1>
-            <p style='font-size:18px;'>Temukan buku favorit Anda berikutnya berdasarkan preferensi dan analisis konten.</p>
-        </div>
+    <style>
+    .icon-button {
+        background-color: #16a085; /* Warna hijau mirip target */
+        border-radius: 15px;      /* Sudut membulat */
+        padding: 20px;
+        text-align: center;
+        color: white !important;  /* Paksa warna teks jadi putih */
+        height: 140px;            /* Tinggi konsisten */
+        text-decoration: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        transition: background-color 0.3s;
+    }
+    .icon-button:hover {
+        background-color: #1abc9c; /* Warna hover lebih cerah */
+        color: white !important;   /* Paksa warna teks jadi putih */
+        text-decoration: none;
+    }
+    .icon-button-icon {
+        font-size: 48px;          /* Ukuran ikon emoji */
+        line-height: 1;
+    }
+    .icon-button-text {
+        margin-top: 10px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    /* Sembunyikan dekorasi link default Streamlit */
+    a:link, a:visited {
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+    </style>
     """, unsafe_allow_html=True)
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    # Tombol-tombol ini menggunakan HTML kustom agar bisa di-style.
+    # Karena itu, mereka tidak bisa diklik untuk mengubah halaman Streamlit
+    # secara langsung. Mereka saat ini HANYA VISUAL.
+    
+    with col1:
+        st.markdown("""
+            <div class="icon-button">
+                <div class="icon-button-icon">📅</div>
+                <div class="icon-button-text">Latest Additions</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+            <div class="icon-button">
+                <div class="icon-button-icon">🔎</div>
+                <div class="icon-button-text">Advanced Search</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+            <div class="icon-button">
+                <div class="icon-button-icon">🗂️</div>
+                <div class="icon-button-text">Browse Repository</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with col4:
+        st.markdown("""
+            <div class="icon-button">
+                <div class="icon-button-icon">ℹ️</div>
+                <div class="icon-button-text">About us</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col5:
+        st.markdown("""
+            <div class="icon-button">
+                <div class="icon-button-icon">📜</div>
+                <div class="icon-button-text">Policies</div>
+            </div>
+        """, unsafe_allow_html=True)
+
     st.divider()
 
+    # --- SISA DARI HALAMAN BERANDA ANDA ---
+    # (Letakkan kode metrik dan chart Anda sebelumnya di sini)
+    
+    st.subheader("Data Overview")
     if not df_books.empty:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Judul Buku", f"{df_books['title'].nunique()} Judul")
+        m1, m2, m3 = st.columns(3)
+        
+        m1.metric("Total Judul Buku", f"{df_books['title'].nunique()} Judul")
         
         try:
             if 'authors' in df_books.columns:
                 all_authors = df_books['authors'].dropna().astype(str).unique()
-                col2.metric("Total Penulis", f"{len(all_authors)} Penulis")
+                m2.metric("Total Penulis", f"{len(all_authors)} Penulis")
             else:
-                col2.metric("Total Penulis", "N/A")
+                m2.metric("Total Penulis", "N/A")
         except Exception:
-            col2.metric("Total Penulis", "N/A")
+            m2.metric("Total Penulis", "N/A")
 
         if 'categories' in df_books.columns:
-            col3.metric("Jumlah Kategori", f"{df_books['categories'].nunique()} Kategori")
+            m3.metric("Jumlah Kategori", f"{df_books['categories'].nunique()} Kategori")
         else:
-            col3.metric("Jumlah Kategori", "N/A")
+            m3.metric("Jumlah Kategori", "N/A")
+            
+        st.dataframe(df_books[['title', 'authors', 'categories']].head(10), use_container_width=True)
+        
     else:
         st.info("Data buku belum dimuat...")
-
-    st.divider()
-    st.subheader("Sampel Dataset Buku")
-    if not df_books.empty:
-        st.dataframe(df_books[['title', 'authors', 'categories']].head(10), use_container_width=True)
-    st.divider()
-
-    col_chart1, col_chart2 = st.columns(2)
-    with col_chart1:
-        st.subheader("Top 10 Kategori Buku")
-        if not df_books.empty and 'categories' in df_books.columns:
-            try:
-                top_categories = df_books['categories'].dropna().astype(str).value_counts().nlargest(10)
-                st.bar_chart(top_categories)
-            except Exception as e:
-                st.warning(f"Gagal membuat chart kategori: {e}")
-        else:
-            st.caption("Kolom 'categories' tidak ditemukan.")
-
-    with col_chart2:
-        st.subheader("Top 10 Penulis")
-        if not df_books.empty and 'authors' in df_books.columns:
-            try:
-                top_authors = df_books['authors'].dropna().astype(str).value_counts().nlargest(10)
-                st.bar_chart(top_authors)
-            except Exception as e:
-                st.warning(f"Gagal membuat chart penulis: {e}")
-        else:
-            st.caption("Kolom 'authors' tidak ditemukan.")
-            
-    st.divider()
-    st.subheader("☁️ Word Cloud (dari Deskripsi & Judul)")
-    if not df_books.empty and HAS_WORDCLOUD:
-        text_reviews = " ".join(df_books['text'].astype(str))
-        if text_reviews.strip():
-            wc = WordCloud(width=800, height=400, background_color="white").generate(text_reviews)
-            fig_wc, ax_wc = plt.subplots()
-            ax_wc.imshow(wc, interpolation='bilinear')
-            ax_wc.axis('off')
-            st.pyplot(fig_wc)
-        else:
-            st.caption("Tidak ada teks untuk WordCloud.")
 
 # ===============================================
 # Halaman 2: REKOMENDASI (DIUBAH)
@@ -434,6 +514,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
