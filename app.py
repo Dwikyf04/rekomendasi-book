@@ -32,7 +32,7 @@ st.markdown("A compact portfolio app: search books (with typo-tolerance), get co
 # Utilities
 # ----------------------
 @st.cache_data
-def load_books(file_path="books.csv"):
+def load_books(file_path="data - books.csv"):
     if not os.path.exists(file_path):
         st.error(f"books.csv not found at path: {file_path}. Please upload dataset to repository root or use File Uploader in the Recommender tab.")
         return pd.DataFrame()
@@ -277,6 +277,7 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
 
 
 
