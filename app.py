@@ -13,6 +13,7 @@ import sqlite3  # Menggunakan SQLite, bukan JSON
 from textwrap import shorten
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import NearestNeighbors
+from streamlit_option_menu import option_menu
 from sklearn.cluster import KMeans
 
 # Optional semantic model
@@ -450,6 +451,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
