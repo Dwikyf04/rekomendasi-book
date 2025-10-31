@@ -1,6 +1,6 @@
-# streamlit_book_recommender_app.py
-# Portofolio App: Book Recommendation System
-# Built for Nanda — combines TF-IDF, fuzzy search, KNN (embedding), and K-Means clustering
+# [File: app_buku.py]
+# Portofolio App: Book Recommendation System (Versi Multi-Page Lanjutan)
+# Menggabungkan fitur dari app buku sebelumnya dengan struktur app perpustakaan
 
 import streamlit as st
 import pandas as pd
@@ -9,281 +9,475 @@ import joblib
 import os
 import re
 import matplotlib.pyplot as plt
+import difflib
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
+
+# --- Import opsional (tergantung library yang diinstal) ---
+try:
+    from sentence_transformers import SentenceTransformer, util
+    HAS_SBERT = True
+except ImportError:
+    HAS_SBERT = False
+
+try:
+    from wordcloud import WordCloud
+    HAS_WORDCLOUD = True
+except ImportError:
+    HAS_WORDCLOUD = False
+
+try:
+    from thefuzz import process
+    HAS_THEFUZZ = True
+except ImportError:
+    HAS_THEFUZZ = False
+
+try:
+    from streamlit_option_menu import option_menu
+    HAS_OPTION_MENU = True
+except ImportError:
+    HAS_OPTION_MENU = False
+    st.error("Butuh 'streamlit_option_menu'. Install: pip install streamlit-option-menu")
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
-from wordcloud import WordCloud
-from sentence_transformers import SentenceTransformer, util
-from thefuzz import process
-
-
-# Optional: semantic embeddings (SentenceTransformers). If not available the app still runs with TF-IDF.
-
 
 # ----------------------
-# App configuration
+# Konfigurasi Halaman
 # ----------------------
-st.set_page_config(page_title="Book Recommender — Nanda", layout="wide")
-st.title("📚 Book Recommendation Portfolio")
-st.markdown("A compact portfolio app: search books (with typo-tolerance), get content-based and embedding-based recommendations, explore clusters, and inspect metadata.")
+st.set_page_config(page_title="Rekomendasi Buku", layout="wide")
 
 # ----------------------
-# Utilities
+# 1. Fungsi Pemuatan Data (Cache)
 # ----------------------
+
+@st.cache_resource
+def load_models():
+    """
+    Memuat model TF-IDF, K-Means, dan TF-IDF Matrix dari file .pkl.
+    Ini adalah pola yang jauh lebih baik untuk deployment.
+    """
+    models_path = "model/" # Pastikan Anda punya folder 'Models'
+    try:
+        tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
+        tfidf_mat = joblib.load(os.path.join(models_path, "tfidf_matrix.pkl"))
+        kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
+        
+        # SBERT embeddings (opsional, jika Anda menyimpannya)
+        sbert_path = os.path.join(models_path, "sbert_embeddings.pkl")
+        if os.path.exists(sbert_path):
+            sbert_embeddings = joblib.load(sbert_path)
+        else:
+            sbert_embeddings = None
+            
+        return tfidf_vec, tfidf_mat, kmeans_model, sbert_embeddings
+        
+    except FileNotFoundError as e:
+        st.error(f"File model tidak ditemukan: {e}. Pastikan file .pkl ada di folder 'Models/'.")
+        st.info("Aplikasi akan lanjut tanpa model (fungsionalitas terbatas).")
+        return None, None, None, None
+    except Exception as e:
+        st.error(f"Gagal memuat model: {e}")
+        return None, None, None, None
+
 @st.cache_data
-def load_books(file_path="book.csv"):
-    if not os.path.exists(file_path):
-        st.error(f"books.csv not found at path: {file_path}. Please upload dataset to repository root or use File Uploader in the Recommender tab.")
+def load_book_data(file_path="book.csv"):
+    """
+    Memuat data buku (ringkasan) dari file CSV.
+    """
+    try:
+        df = pd.read_csv(file_path)
+        df = df.drop_duplicates(subset=[c for c in ['isbn13','title'] if c in df.columns], keep='first')
+        df['title'] = df['title'].astype(str)
+        
+        # Buat kolom 'text' gabungan (sama seperti kode Anda)
+        cols = []
+        for c in ['title','subtitle','authors','categories','description']:
+            if c in df.columns:
+                cols.append(c)
+        if cols:
+            df['text'] = df[cols].fillna('').agg(' '.join, axis=1)
+        else:
+            df['text'] = df['title'] # Fallback
+            
+        df = df.reset_index(drop=True)
+        return df
+        
+    except FileNotFoundError:
+        st.error(f"File data '{file_path}' tidak ditemukan. Silakan upload.")
         return pd.DataFrame()
-    df = pd.read_csv(file_path)
-    # minimal cleaning
-    df = df.drop_duplicates(subset=[c for c in ['isbn13','title'] if c in df.columns], keep='first')
-    df['title'] = df['title'].astype(str)
-    # create combined text field
-    cols = []
-    for c in ['title','subtitle','authors','categories','description']:
-        if c in df.columns:
-            cols.append(c)
-    if cols:
-        df['content'] = df[cols].fillna('').agg(' '.join, axis=1)
-    else:
-        df['content'] = df['title']
-    df = df.reset_index(drop=True)
-    return df
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat memuat data CSV (Buku): {e}")
+        return pd.DataFrame()
 
-@st.cache_resource
-def build_tfidf(df, max_features=5000):
-    vec = TfidfVectorizer(stop_words='english', max_features=max_features)
-    mat = vec.fit_transform(df['text'].fillna(''))
-    return vec, mat
-
-@st.cache_resource
-def build_kmeans(tfidf_matrix, n_clusters=8):
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    kmeans.fit(tfidf_matrix)
-    return kmeans
-
-@st.cache_resource
-def build_sbert_embeddings(df, model_name='paraphrase-multilingual-MiniLM-L12-v2'):
-    model = SentenceTransformer(model_name)
-    embeddings = model.encode(df['text'].tolist(), convert_to_tensor=True)
-    return model, embeddings
-
-# fuzzy helper
+# --- Fungsi Bantuan (dari kode Anda) ---
 def fuzzy_match(query, choices, limit=1):
-    if process is not None:
+    if HAS_THEFUZZ and process is not None:
         res = process.extractOne(query, choices)
         if res:
             return res[0], res[1]
         return None, 0
     else:
-        # use difflib sequence matcher
+        # Fallback jika thefuzz tidak ada
         matches = difflib.get_close_matches(query, choices, n=limit)
         return (matches[0], 90) if matches else (None, 0)
+        
+# ----------------------
+# 2. Memuat Semua Data & Model
+# ----------------------
+df_books = load_book_data("book.csv") # Ganti 'book.csv' jika nama file Anda berbeda
+tfidf_vectorizer, tfidf_matrix, kmeans_model, sbert_embeddings = load_models()
 
 # ----------------------
-# Load data & models
-# ----------------------
-books = load_books()
-if not df.empty:
-    tfidf_vectorizer, tfidf_matrix = build_tfidf(df)
-else:
-    tfidf_vectorizer, tfidf_matrix = None, None
-
-# Try to load optional precomputed artifacts (model files) if present
-KMEANS_PATH = 'model/kmeans.pkl'
-SBERT_PATH = 'model/book_embeddings.pkl'  # optional
-
-kmeans_model = None
-if os.path.exists(KMEANS_PATH):
-    try:
-        kmeans_model = joblib.load(KMEANS_PATH)
-    except Exception:
-        kmeans_model = None
-
-sbert_model = None
-book_embeddings = None
-if HAS_SBERT:
-    if os.path.exists(SBERT_PATH):
-        try:
-            book_embeddings = joblib.load(SBERT_PATH)
-            # note: we do not persist the SentenceTransformer object, only embeddings
-        except Exception:
-            book_embeddings = None
-    else:
-        # Build embeddings lazily if user asks
-        book_embeddings = None
-
-# ----------------------
-# Sidebar menu
+# 3. Navigasi Sidebar
 # ----------------------
 with st.sidebar:
-    st.image("Logo.png", width=120) if os.path.exists('Logo.png') else st.write("")
-    page = st.radio("Navigation", ["Home","Recommender","Clusters","Upload Data","About"])
-    st.markdown("---")
-    st.caption("Portofolio — Nanda | Book Recommender")
-
-# ----------------------
-# Home
-# ----------------------
-if page == 'Home':
-    st.header("Welcome")
-    st.write("This app showcases a book recommender system built for a portfolio. Use the Recommender tab to search and get recommendations.")
-
-    if df.empty:
-        st.warning("Dataset not found. Go to Upload Data tab to upload your books.csv or push dataset to repo.")
+    st.image("Logo.png", width=120) if os.path.exists('Logo.png') else st.title("Rekomendasi Buku")
+    
+    if HAS_OPTION_MENU:
+        selected_page = option_menu(
+            menu_title="Menu Utama",
+            options=["Beranda", "Rekomendasi", "Analisis Teks", "About", "Feedback"],
+            icons=["house-door-fill", "star-fill", "search", "info-circle-fill", "chat-left-text-fill"],
+            menu_icon="compass-fill",
+            default_index=0
+        )
     else:
-        st.subheader("Dataset sample")
-        st.dataframe(df[['title','authors','categories']].head(10))
-        st.subheader("Word Cloud (from titles & descriptions)")
-        wc_text = ' '.join(df['text'].astype(str).tolist())
-        if wc_text.strip():
-            wc = WordCloud(width=800, height=400).generate(wc_text)
-            fig, ax = plt.subplots(figsize=(10,4))
-            ax.imshow(wc, interpolation='bilinear')
-            ax.axis('off')
-            st.pyplot(fig)
+        # Fallback jika option_menu gagal di-import
+        selected_page = st.radio("Menu Utama", ["Beranda", "Rekomendasi", "Analisis Teks", "About", "Feedback"])
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption("Dibuat oleh Nanda | 2025")
 
 # ----------------------
-# Recommender
+# 4. Konten Halaman
 # ----------------------
-elif page == 'Recommender':
-    st.header("🔎 Book Recommender")
-    if df.empty:
-        st.error("books.csv not available. Upload dataset first.")
+
+# ===============================================
+# Halaman 1: BERANDA
+# ===============================================
+if selected_page == "Beranda":
+    st.markdown("""
+        <div style='text-align:center; padding: 20px;'>
+            <h1>Sistem Rekomendasi Buku</h1>
+            <p style='font-size:18px;'>Temukan buku favorit Anda berikutnya berdasarkan preferensi dan analisis konten.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
+
+    if not df_books.empty:
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Judul Buku", f"{df_books['title'].nunique()} Judul")
+        
+        # Coba hitung penulis unik
+        try:
+            # Asumsi 'authors' adalah string, mungkin perlu di-split atau eval
+            if 'authors' in df_books.columns:
+                all_authors = df_books['authors'].dropna().astype(str).unique()
+                col2.metric("Total Penulis", f"{len(all_authors)} Penulis")
+            else:
+                col2.metric("Total Penulis", "N/A")
+        except Exception:
+            col2.metric("Total Penulis", "N/A")
+
+        if 'categories' in df_books.columns:
+            col3.metric("Jumlah Kategori", f"{df_books['categories'].nunique()} Kategori")
+        else:
+            col3.metric("Jumlah Kategori", "N/A")
     else:
+        st.info("Data buku belum dimuat...")
+
+    st.divider()
+    
+    st.subheader("Sampel Dataset Buku")
+    if not df_books.empty:
+        st.dataframe(df_books[['title', 'authors', 'categories']].head(10), use_container_width=True)
+    
+    st.divider()
+
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
+        st.subheader("Top 10 Kategori Buku")
+        if not df_books.empty and 'categories' in df_books.columns:
+            try:
+                # Membersihkan kategori (seringkali formatnya ['Fiction', 'Science'])
+                # Ini hanya contoh sederhana; mungkin perlu pembersihan lebih lanjut
+                top_categories = df_books['categories'].dropna().astype(str).value_counts().nlargest(10)
+                st.bar_chart(top_categories)
+            except Exception as e:
+                st.warning(f"Gagal membuat chart kategori: {e}")
+        else:
+            st.caption("Kolom 'categories' tidak ditemukan.")
+
+    with col_chart2:
+        st.subheader("Top 10 Penulis")
+        if not df_books.empty and 'authors' in df_books.columns:
+            try:
+                top_authors = df_books['authors'].dropna().astype(str).value_counts().nlargest(10)
+                st.bar_chart(top_authors)
+            except Exception as e:
+                st.warning(f"Gagal membuat chart penulis: {e}")
+        else:
+            st.caption("Kolom 'authors' tidak ditemukan.")
+            
+    st.divider()
+    
+    st.subheader("☁️ Word Cloud (dari Deskripsi & Judul)")
+    if not df_books.empty and HAS_WORDCLOUD:
+        text_reviews = " ".join(df_books['text'].astype(str))
+        if text_reviews.strip():
+            wc = WordCloud(width=800, height=400, background_color="white").generate(text_reviews)
+            fig_wc, ax_wc = plt.subplots()
+            ax_wc.imshow(wc, interpolation='bilinear')
+            ax_wc.axis('off')
+            st.pyplot(fig_wc)
+        else:
+            st.caption("Tidak ada teks untuk WordCloud.")
+
+# ===============================================
+# Halaman 2: REKOMENDASI (Kode Lama Anda)
+# ===============================================
+elif selected_page == "Rekomendasi":
+    st.header("🔎 Rekomendasi Buku (Pencarian Judul)")
+    st.markdown("Cari buku berdasarkan judul (toleran terhadap typo) dan dapatkan rekomendasi berdasarkan kemiripan konten (TF-IDF) atau makna (Embedding).")
+    
+    if df_books.empty:
+        st.error("book.csv tidak tersedia. Upload dataset terlebih dahulu.")
+    elif tfidf_matrix is None:
+        st.error("Model TF-IDF (tfidf_matrix.pkl) tidak ditemukan. Fitur ini dinonaktifkan.")
+    else:
+        # --- Opsi Metode ---
+        method_options = ["TF-IDF Cosine"]
+        if HAS_SBERT and sbert_embeddings is not None:
+            method_options.extend(["Embedding + KNN (Semantic)"])
+        elif HAS_SBERT and sbert_embeddings is None:
+            st.info("Mode Embedding tersedia, namun 'sbert_embeddings.pkl' tidak ditemukan. Embeddings akan dibuat saat runtime (mungkin lambat).")
+            method_options.extend(["Embedding + KNN (Semantic)"])
+
         cols = st.columns([3,1])
-        query = cols[0].text_input("Search book title (typo OK):", value="harry pottr and the chamber of secrets")
-        method = cols[1].selectbox("Method", ["TF-IDF Cosine","Embedding + KNN (semantic)","Hybrid (TF-IDF+Embedding)"])
-        top_k = st.slider("Top K", min_value=3, max_value=20, value=5)
+        query = cols[0].text_input("Cari judul buku (typo OK):", value="harry pottr and the chamber of secrets")
+        method = cols[1].selectbox("Metode Rekomendasi", method_options)
+        top_k = st.slider("Jumlah Rekomendasi (Top K)", min_value=3, max_value=20, value=5)
 
-        # fuzzy match to find canonical title
-        titles = df['title'].astype(str).tolist()
+        # Fuzzy match
+        titles = df_books['title'].astype(str).tolist()
         matched_title, score = fuzzy_match(query, titles)
         if matched_title:
-            st.caption(f"Did you mean: **{matched_title}**  (score: {score})")
+            st.caption(f"Judul terdekat ditemukan: **{matched_title}** (Skor kemiripan: {score})")
 
-        if st.button("Recommend"):
-            if method == 'TF-IDF Cosine':
-                # find index
-                if matched_title is None:
-                    st.warning('No close title matched. Try different input.')
-                else:
-                    idx = df[df['title'] == matched_title].index[0]
-                    sim = cosine_similarity(tfidf_matrix[idx], tfidf_matrix).flatten()
-                    top_idx = sim.argsort()[::-1][1:top_k+1]
-                    res = df.iloc[top_idx][['title','authors','categories']].copy()
-                    res['score'] = sim[top_idx]
-                    st.dataframe(res.reset_index(drop=True))
+        if st.button("Dapatkan Rekomendasi"):
+            if matched_title is None:
+                st.warning('Tidak ada judul yang cocok. Coba query pencarian lain.')
+            else:
+                try:
+                    # --- Logika TF-IDF ---
+                    if method == 'TF-IDF Cosine':
+                        idx = df_books[df_books['title'] == matched_title].index[0]
+                        sim = cosine_similarity(tfidf_matrix[idx], tfidf_matrix).flatten()
+                        top_idx = sim.argsort()[::-1][1:top_k+1]
+                        res = df_books.iloc[top_idx][['title','authors','categories']].copy()
+                        res['score'] = sim[top_idx]
+                        st.subheader("Hasil Rekomendasi (TF-IDF):")
+                        st.dataframe(res.reset_index(drop=True), use_container_width=True)
 
-            elif method == 'Embedding + KNN (semantic)':
-                if not HAS_SBERT:
-                    st.error('SentenceTransformer not installed. Install sentence-transformers in requirements to use embedding mode.')
-                else:
-                    # build embeddings if not present
-                    if book_embeddings is None:
-                        with st.spinner('Building sentence embeddings (may take a while)...'):
-                            s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                            book_embeddings = s_model.encode(df['text'].tolist(), convert_to_tensor=False)
-                            # save to memory cache (not persisted to disk here)
-                    # build knn
-                    knn = NearestNeighbors(metric='cosine', algorithm='brute')
-                    knn.fit(book_embeddings)
-                    # encode query
-                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                    q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
-                    dist, idxs = knn.kneighbors(q_emb, n_neighbors=top_k+1)
-                    idxs = idxs.flatten()[1:top_k+1]
-                    res = df.iloc[idxs][['title','authors','categories']].copy()
-                    res['distance'] = dist.flatten()[1:top_k+1]
-                    st.dataframe(res.reset_index(drop=True))
+                    # --- Logika SBERT / Embedding ---
+                    elif method == 'Embedding + KNN (Semantic)' and HAS_SBERT:
+                        
+                        # Jika embeddings.pkl tidak ada, build saat runtime
+                        current_embeddings = sbert_embeddings
+                        if current_embeddings is None:
+                            with st.spinner('Membangun SBERT embeddings (pertama kali)...'):
+                                s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                current_embeddings = s_model.encode(df_books['text'].tolist(), convert_to_tensor=False)
+                        
+                        # Build KNN
+                        knn = NearestNeighbors(metric='cosine', algorithm='brute')
+                        knn.fit(current_embeddings)
+                        
+                        # Dapatkan index judul yang di-match
+                        idx_query = df_books[df_books['title'] == matched_title].index[0]
+                        q_emb = current_embeddings[idx_query].reshape(1,-1)
+                        
+                        dist, idxs = knn.kneighbors(q_emb, n_neighbors=top_k+1)
+                        idxs = idxs.flatten()[1:top_k+1] # Skip item pertama (dirinya sendiri)
+                        
+                        res = df_books.iloc[idxs][['title','authors','categories']].copy()
+                        res['distance'] = dist.flatten()[1:top_k+1]
+                        st.subheader("Hasil Rekomendasi (Semantic):")
+                        st.dataframe(res.reset_index(drop=True), use_container_width=True)
+                        
+                except IndexError:
+                    st.error("Gagal menemukan index untuk judul yang cocok. Coba refresh.")
+                except Exception as e:
+                    st.error(f"Terjadi kesalahan: {e}")
 
-            else: # Hybrid
-                # compute tfidf scores and embedding scores then combine
-                if not HAS_SBERT:
-                    st.error('SentenceTransformer not installed. Install sentence-transformers in requirements to use hybrid mode.')
-                else:
-                    # TF-IDF part
-                    if matched_title is None:
-                        st.warning('No close title matched. Try different input.')
-                    else:
-                        idx = df[df['title'] == matched_title].index[0]
-                        tfidf_sim = cosine_similarity(tfidf_matrix[idx], tfidf_matrix).flatten()
-                        # Embedding part
-                        s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                        emb = s_model.encode(df['text'].tolist(), convert_to_tensor=False)
-                        q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
-                        emb_sim = cosine_similarity(q_emb, emb).flatten()
-                        alpha = st.slider('Alpha (embedding weight)', 0.0, 1.0, 0.5)
-                        combined = alpha * emb_sim + (1-alpha) * tfidf_sim
-                        top_idx = combined.argsort()[::-1][1:top_k+1]
-                        res = df.iloc[top_idx][['title','authors','categories']].copy()
-                        res['score'] = combined[top_idx]
-                        st.dataframe(res.reset_index(drop=True))
+# ===============================================
+# Halaman 3: ANALISIS TEKS (BARU)
+# ===============================================
+elif selected_page == "Analisis Teks":
+    st.markdown("""
+        <div style='text-align:center; padding: 20px;'>
+            <h1>Rekomendasi via Analisis Teks</h1>
+            <p style='font-size:18px;'>Jelaskan buku yang Anda cari, dan kami akan temukan yang paling mirip!</p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
 
-# ----------------------
-# Clusters
-# ----------------------
-elif page == 'Clusters':
-    st.header('📂 Clustering (K-Means)')
-    if df.empty:
-        st.error('books.csv not available. Upload dataset first.')
+    # Definisikan nama cluster Anda (HARUS SESUAI DENGAN HASIL TRAINING K-MEANS ANDA)
+    nama_cluster_buku = {
+        0: "Fiksi & Sastra",
+        1: "Teknis & Sains",
+        2: "Self-Help & Bisnis",
+        3_ : "Biografi & Sejarah"
+        # ... sesuaikan dengan jumlah K Anda
+    }
+
+    if tfidf_vectorizer is None or kmeans_model is None or tfidf_matrix is None:
+        st.error("⚠️ Model (TF-IDF/K-Means) gagal dimuat. Fitur ini tidak tersedia.")
     else:
-        n_clusters = st.slider('Number of clusters (k)', 2, 20, value=6)
-        if st.button('Build / Rebuild KMeans'):
-            with st.spinner('Fitting KMeans...'):
-                kmeans_model = build_kmeans(tfidf_matrix, n_clusters=n_clusters)
-                df['cluster'] = kmeans_model.labels_
-                # persist model for reuse
-                os.makedirs('models', exist_ok=True)
-                joblib.dump(kmeans_model, 'models/kmeans.pkl')
-                st.success('KMeans built and saved to models/kmeans.pkl')
-        if 'cluster' in df.columns:
-            st.write(df.groupby('cluster')['title'].count().reset_index(name='count'))
-            chosen = st.selectbox('Select cluster to inspect', sorted(df['cluster'].unique()))
-            st.dataframe(df[df['cluster']==chosen][['title','authors','categories']].head(50))
+        user_input = st.text_area(
+            "Jelaskan buku yang Anda inginkan:", 
+            "Saya mencari buku tentang petualangan di luar angkasa, sihir, dan ada naganya", 
+            key="input_analisis_teks",
+            height=150
+        )
 
-# ----------------------
-# Upload Data
-# ----------------------
-elif page == 'Upload Data':
-    st.header('📁 Upload books.csv')
-    uploaded = st.file_uploader('Upload your books.csv (columns: title, authors, categories, description, etc.)', type=['csv'])
-    if uploaded is not None:
-        try:
-            uploaded_df = pd.read_csv(uploaded)
-            uploaded_df.to_csv('books.csv', index=False)
-            st.success('books.csv saved to app root. Reload page to use dataset.')
-        except Exception as e:
-            st.error(f'Failed to read uploaded file: {e}')
+        if st.button("Cari Buku Serupa"):
+            if user_input.strip():
+                try:
+                    # 1. Ubah input pengguna menjadi vektor TF-IDF
+                    input_vector = tfidf_vectorizer.transform([user_input])
 
-# ----------------------
-# About
-# ----------------------
-elif page == 'About':
-    st.header('About this Portfolio App')
-    st.markdown('''
-    - **Author:** Nanda
-    - **What:** Book Recommendation System combining TF-IDF, semantic embeddings, clustering, and fuzzy search.
-    - **How to run locally:**
-        1. Put `books.csv` in the project root
-        2. Install requirements (see requirements.txt)
-        3. Run `streamlit run streamlit_book_recommender_app.py`
-    ''')
+                    # 2. Prediksi Topik (K-Means)
+                    cluster_pred = kmeans_model.predict(input_vector)[0]
+                    cluster_name = nama_cluster_buku.get(cluster_pred, f"Cluster {cluster_pred}")
 
-# ----------------------
-# Footer: requirements reminder
-# ----------------------
-st.markdown('---')
-st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+                    st.subheader("Hasil Analisis Teks Anda")
+                    st.info(f"Topik utama yang Anda cari terdeteksi sebagai: **{cluster_name}**")
+
+                    # 3. Hitung Cosine Similarity
+                    st.markdown("---")
+                    st.subheader("Rekomendasi Buku yang Paling Sesuai")
+                    st.caption("Berdasarkan kemiripan deskripsi Anda dengan semua buku di database kami.")
+
+                    similarity_scores = cosine_similarity(input_vector, tfidf_matrix).flatten()
+                    top_indices = similarity_scores.argsort()[::-1][:5] # Ambil 5 teratas
+
+                    rekomendasi_df = pd.DataFrame({
+                        "Judul Buku": df_books.iloc[top_indices]['title'],
+                        "Penulis": df_books.iloc[top_indices]['authors'],
+                        "Kategori": df_books.iloc[top_indices]['categories'],
+                        "Skor Kemiripan (%)": [round(similarity_scores[i] * 100, 2) for i in top_indices]
+                    })
+
+                    st.dataframe(rekomendasi_df.reset_index(drop=True), use_container_width=True)
+
+                except Exception as e:
+                    st.error(f"❌ Gagal memproses: {e}")
+            else:
+                st.warning("Masukkan deskripsi buku yang Anda cari terlebih dahulu!")
 
 
+# ===============================================
+# Halaman 4: ABOUT
+# ===============================================
+elif selected_page == "About":
+    st.markdown("""
+        <div style='text-align:center; padding: 20px;'>
+            <h1>About Aplikasi Ini</h1>
+            <p style='font-size:18px;'>Metodologi dan teknologi di balik portofolio ini.</p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
+    
+    st.markdown("""
+    ### Metodologi
+    Aplikasi ini adalah portofolio yang mendemonstrasikan beberapa teknik *Machine Learning* untuk sistem rekomendasi:
+    
+    1.  **Pencarian Judul (Tab Rekomendasi)**
+        * **Fuzzy Search:** Menggunakan `thefuzz` untuk menemukan judul buku yang paling mirip dengan input pengguna, mentolerir salah ketik.
+        * **Rekomendasi TF-IDF:** Menggunakan `Cosine Similarity` pada matriks `TfidfVectorizer` yang telah dilatih pada gabungan teks (judul, deskripsi, kategori).
+        * **Rekomendasi Semantic (Opsional):** Menggunakan `SentenceTransformer` (SBERT) untuk membuat *embeddings* (vektor makna) dari teks. Rekomendasi dicari menggunakan `NearestNeighbors` (KNN) pada ruang vektor tersebut.
+
+    2.  **Analisis Teks (Tab Analisis Teks)**
+        * **Clustering Topik (Unsupervised):** Model `K-Means` digunakan untuk mengelompokkan semua buku ke dalam beberapa topik utama (misal: Fiksi, Teknis, dll). Input pengguna diklasifikasikan ke dalam cluster terdekat.
+        * **Content-Based Filtering:** Vektor TF-IDF dari *input teks pengguna* dicocokkan dengan `Cosine Similarity` terhadap *seluruh* matriks TF-IDF buku untuk menemukan item yang paling relevan.
+
+    3.  **Dashboard (Tab Beranda)**
+        * Menampilkan statistik deskriptif dari dataset menggunakan `st.metric` dan `st.bar_chart`.
+        * `WordCloud` digunakan untuk visualisasi kata-kata yang paling sering muncul dalam data teks.
+    
+    4.  **Feedback Pengguna**
+        * Menggunakan `gspread` dan `st.secrets` untuk terhubung ke Google Sheets API dan menyimpan feedback secara aman.
+    
+    ---
+    *Dibuat oleh Nanda*
+    """)
 
 
+# ===============================================
+# Halaman 5: FEEDBACK (Diambil dari kode perpustakaan Anda)
+# ===============================================
+elif selected_page == "Feedback":
 
+    # === HEADER ===
+    st.markdown("""
+        <div style='text-align:center; padding: 15px;'>
+            <h2>Formulir Feedback Pengguna</h2>
+            <p style='font-size:17px;'>Masukan Anda sangat berharga bagi pengembangan aplikasi ini 🙌</p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
 
+    # === KONEKSI KE GOOGLE SHEETS — MENGGUNAKAN STREAMLIT SECRETS ===
+    SCOPE = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
 
+    sheet = None # Inisialisasi
+    try:
+        # Cek apakah secrets 'gcp_service_account' ada
+        if "gcp_service_account" in st.secrets:
+            creds_dict = st.secrets["gcp_service_account"]
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+            client = gspread.authorize(creds)
+            # GANTI "feedback_portofolio_buku" dengan nama Google Sheet Anda
+            sheet = client.open("feedback_portofolio_buku").sheet1 
+        else:
+            st.warning("Fitur feedback dinonaktifkan. Secret 'gcp_service_account' tidak diatur.")
+            
+    except Exception as e:
+        st.error(f"⚠️ Tidak dapat terhubung ke Google Sheets: {e}")
+        st.info("Pastikan Anda telah membagikan Google Sheet Anda dengan email 'client_email' di file secrets.")
 
+    # === FORM INPUT FEEDBACK ===
+    with st.form("feedback_form"):
+        user_name = st.text_input("Nama (opsional)")
+        user_rating = st.slider("Seberapa puas Anda dengan aplikasi ini?", 1, 5, 5)
+        user_feedback = st.text_area("Kritik / Saran Anda ✍️", placeholder="Aplikasi ini sangat membantu, tapi...")
 
+        submitted = st.form_submit_button("Kirim Feedback ✅")
 
+    # === SIMPAN FEEDBACK ===
+    if submitted:
+        if not user_feedback.strip():
+            st.warning("Mohon isi kritik atau saran terlebih dahulu.")
+        elif sheet is None:
+            st.error("❌ Feedback gagal dikirim. Koneksi ke database (Google Sheets) belum siap.")
+        else:
+            try:
+                sheet.append_row([
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    user_name,
+                    user_rating,
+                    user_feedback
+                ])
+                st.success("✨ Terima kasih! Feedback Anda berhasil dikirim.")
+                st.balloons()
+            except Exception as e:
+                st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
