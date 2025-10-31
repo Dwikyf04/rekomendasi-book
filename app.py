@@ -107,17 +107,28 @@ elif choice == "Login":
 if "login" in st.session_state and st.session_state["login"]:
     @st.cache_resource
     def load_models():
-        with open("models/tfidf_vectorizer.pkl", "rb") as f:
-            tfidf_vectorizer = pickle.load(f)
-        with open("models/kmeans_model.pkl", "rb") as f:
-            kmeans_model = pickle.load(f)
-        with open("models/knn_model.pkl", "rb") as f:
-            knn_model = pickle.load(f)
-        with open("models/embeddings.pkl", "rb") as f:
-            embeddings = pickle.load(f)
-        return tfidf_vectorizer, kmeans_model, knn_model, embeddings
+    model_files = {
+        "tfidf_vectorizer": "model/tfidf_vectorizer.pkl",
+        "kmeans_model": "model/kmeans_model.pkl",
+        "knn_model": "model/knn_model.pkl",
+        "embeddings": "model/embeddings.pkl"
+    }
 
-    tfidf_vectorizer, kmeans_model, knn_model, embeddings = load_models()
+    models = {}
+    for name, path in model_files.items():
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                models[name] = pickle.load(f)
+        else:
+            st.warning(f"⚠️ File model '{path}' tidak ditemukan. Pastikan file ini ada di folder 'models/'.")
+            models[name] = None
+
+    return (
+        models["tfidf_vectorizer"],
+        models["kmeans_model"],
+        models["knn_model"],
+        models["embeddings"],
+    )
 
     @st.cache_data
     def load_books():
@@ -224,3 +235,4 @@ if "login" in st.session_state and st.session_state["login"]:
     if st.sidebar.button("Logout"):
         st.session_state.clear()
         st.experimental_rerun()
+
