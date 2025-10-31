@@ -184,7 +184,6 @@ st.sidebar.caption("Dibuat oleh Nanda | 2025")
 # [GANTI BAGIAN INI DI app.py ANDA]
 
 elif selected_page == "Beranda":
-    
     # 1. Kotak Info Biru (Mirip target)
     st.info("ℹ️ **Selamat Datang di Sistem Rekomendasi Buku!** Temukan buku favorit Anda berikutnya di sini.")
 
@@ -514,6 +513,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
