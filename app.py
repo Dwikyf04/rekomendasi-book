@@ -23,8 +23,8 @@ except Exception:
 
 # fuzzy matching
 try:
-except Exception:
-    process = None
+    except Exception:
+        process = None
 
 # ----------------------
 # App configuration
@@ -282,4 +282,5 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
 
