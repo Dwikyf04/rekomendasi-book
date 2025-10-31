@@ -94,7 +94,7 @@ def load_models():
         return None, None, None, None
 
 @st.cache_data
-def load_book_data(file_path="book.csv"):
+def load_book_data(file_path="data - books.csv"):
     """
     Memuat data buku (ringkasan) dari file CSV.
     """
@@ -133,7 +133,7 @@ def fuzzy_match(query, choices, limit=1):
 # ----------------------
 # 2. Memuat Semua Data & Model
 # ----------------------
-df_books = load_book_data("book.csv")
+df_books = load_book_data("data - books.csv")
 tfidf_vectorizer, kmeans_model, knn_model, sbert_embeddings = load_models()
 
 # ----------------------
@@ -434,6 +434,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
