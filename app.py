@@ -32,7 +32,7 @@ st.markdown("A compact portfolio app: search books (with typo-tolerance), get co
 # Utilities
 # ----------------------
 @st.cache_data
-def load_books(file_path="books.csv"):
+def load_books(file_path="book.csv"):
     if not os.path.exists(file_path):
         st.error(f"books.csv not found at path: {file_path}. Please upload dataset to repository root or use File Uploader in the Recommender tab.")
         return pd.DataFrame()
@@ -85,15 +85,15 @@ def fuzzy_match(query, choices, limit=1):
 # ----------------------
 # Load data & models
 # ----------------------
-df = load_books('books.csv')
+df = load_books('book.csv')
 if not df.empty:
     tfidf_vectorizer, tfidf_matrix = build_tfidf(df)
 else:
     tfidf_vectorizer, tfidf_matrix = None, None
 
 # Try to load optional precomputed artifacts (model files) if present
-KMEANS_PATH = 'models/kmeans.pkl'
-SBERT_PATH = 'models/book_embeddings.pkl'  # optional
+KMEANS_PATH = 'model/kmeans.pkl'
+SBERT_PATH = 'model/book_embeddings.pkl'  # optional
 
 kmeans_model = None
 if os.path.exists(KMEANS_PATH):
@@ -277,6 +277,7 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
 
 
 
