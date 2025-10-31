@@ -35,7 +35,21 @@ BOOKS_CSV = os.path.join(ROOT, "data - books.csv")
 # ---------------------------
 # Style (dari File 1)
 # ---------------------------
-
+st.markdown("""
+    <style>
+        body { background-color: #F8FAFC; }
+        .main {
+            background-color: white; padding: 20px;
+            border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stButton>button {
+            background-color: #003366; color: white;
+            border-radius: 8px; border: none; padding: 10px 20px;
+        }
+        .stButton>button:hover { background-color: #00509E; }
+        h1, h2, h3 { color: #003366; }
+    </style>
+""", unsafe_allow_html=True)
 
 # ---------------------------
 # Utilities: users.db (dari File 2, diadaptasi)
@@ -218,7 +232,6 @@ else:
 
     # ------- Home -------
     if tab == "Home":
-        st.markdown('<div class="card"><h3>Welcome</h3><p>Aplikasi portofolio ini mendemonstrasikan rekomendasi buku berbasis TF-IDF dan semantik. Login untuk fitur personalisasi.</p></div>', unsafe_allow_html=True)
         if not books_df.empty:
             st.write(f"Dataset: {len(books_df)} buku")
             st.dataframe(books_df[['title','authors','categories']].head(8))
@@ -410,5 +423,6 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
