@@ -240,7 +240,7 @@ st.set_page_config(page_title="Book Repository", layout="wide")
 # ----------------------
 
 @st.cache_data
-def load_dataframe(file_path="books_df.pkl"):
+def load_dataframe(file_path="df_books.pkl"):
     """
     Memuat DataFrame buku yang sudah diproses dari file .pkl.
     """
@@ -877,6 +877,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
