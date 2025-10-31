@@ -46,9 +46,9 @@ def load_books(file_path="book.csv"):
         if c in df.columns:
             cols.append(c)
     if cols:
-        df['text'] = df[cols].fillna('').agg(' '.join, axis=1)
+        df['content'] = df[cols].fillna('').agg(' '.join, axis=1)
     else:
-        df['text'] = df['title']
+        df['content'] = df['title']
     df = df.reset_index(drop=True)
     return df
 
@@ -277,6 +277,7 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
 
 
 
