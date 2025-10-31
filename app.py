@@ -107,7 +107,8 @@ def load_models():
     kmeans_model = joblib.load(os.path.join(MODELS_DIR, "kmeans_model.pkl"))
     knn_model = joblib.load(os.path.join(MODELS_DIR, "knn_model.pkl"))
     embeddings = joblib.load(os.path.join(MODELS_DIR, "embeddings.pkl"))
-    return tfidf_vectorizer, kmeans_model, knn_model, embeddings
+    tfidf_matrix = joblib.load(os.path.join(MODELS_DIR, "tfidf_matrix.pkl"))
+    return tfidf_vectorizer, kmeans_model, knn_model, embeddings, tfidf_matrix
 
 def ensure_text_column(df):
     if 'text' not in df.columns:
@@ -435,6 +436,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
