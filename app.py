@@ -102,7 +102,6 @@ create_usertable()
 # ---------------------------
 @st.cache_resource
 def load_models():
-    # Menggunakan joblib (lebih aman untuk sklearn)
     tfidf_vectorizer = joblib.load(os.path.join(MODELS_DIR, "tfidf_vectorizer.pkl"))
     kmeans_model = joblib.load(os.path.join(MODELS_DIR, "kmeans_model.pkl"))
     knn_model = joblib.load(os.path.join(MODELS_DIR, "knn_model.pkl"))
@@ -241,7 +240,7 @@ if 'logged_in' not in st.session_state or not st.session_state.get('logged_in'):
 else:
     # --- PANGGILAN MODEL & DATA DIPINDAHKAN KE SINI ---
     try:
-        tfidf, kmeans_model, knn_model, embeddings = load_models()
+        tfidf, kmeans_model, knn_model, embeddings,tfidf_matrix = load_models()
     except FileNotFoundError:
         st.error("Gagal memuat file model. Pastikan folder 'model' dan file .pkl ada.")
         st.stop()
@@ -425,6 +424,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
