@@ -22,7 +22,7 @@ st.title("📚 Book Recommendation Dashboard")
 st.write("Sistem rekomendasi buku berbasis **TF-IDF**, **Cosine Similarity**, dan **K-Means Clustering**")
 
 @st.cache_resource
-def load_models():
+def load_model():
     """
     Memuat model TF-IDF, SVM, dan K-Means dari file .pkl.
     """
@@ -150,6 +150,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
