@@ -7,4 +7,5 @@ plotly
 streamlit-option-menu
 thefuzz
 sentence_transformers
+wordcloud
 
