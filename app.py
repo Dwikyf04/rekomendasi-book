@@ -73,13 +73,13 @@ if "login" in st.session_state and st.session_state["login"] == True:
     # ======================================================
     @st.cache_resource
     def load_models():
-        with open("models/tfidf_vectorizer.pkl", "rb") as f:
+        with open("model/tfidf_vectorizer.pkl", "rb") as f:
             tfidf_vectorizer = pickle.load(f)
-        with open("models/kmeans_model.pkl", "rb") as f:
+        with open("model/kmeans_model.pkl", "rb") as f:
             kmeans_model = pickle.load(f)
-        with open("models/knn_model.pkl", "rb") as f:
+        with open("model/knn_model.pkl", "rb") as f:
             knn_model = pickle.load(f)
-        with open("models/embeddings.pkl", "rb") as f:
+        with open("model/embeddings.pkl", "rb") as f:
             embeddings = pickle.load(f)
         return tfidf_vectorizer, kmeans_model, knn_model, embeddings
 
@@ -177,3 +177,4 @@ if "login" in st.session_state and st.session_state["login"] == True:
         if st.sidebar.button("Logout"):
             st.session_state.clear()
             st.experimental_rerun()
+
