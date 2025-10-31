@@ -32,11 +32,11 @@ st.markdown("A compact portfolio app: search books (with typo-tolerance), get co
 # Utilities
 # ----------------------
 @st.cache_data
-def load_books(csv_path="books.csv"):
-    if not os.path.exists(csv_path):
-        st.error(f"books.csv not found at path: {csv_path}. Please upload dataset to repository root or use File Uploader in the Recommender tab.")
+def load_books(file_path="books.csv"):
+    if not os.path.exists(file_path):
+        st.error(f"books.csv not found at path: {file_path}. Please upload dataset to repository root or use File Uploader in the Recommender tab.")
         return pd.DataFrame()
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(file_path)
     # minimal cleaning
     df = df.drop_duplicates(subset=[c for c in ['isbn13','title'] if c in df.columns], keep='first')
     df['title'] = df['title'].astype(str)
@@ -277,5 +277,6 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
 
 
