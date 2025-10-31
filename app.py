@@ -157,8 +157,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="header"><h2>Book Recommender (Nanda)</h2></div>', unsafe_allow_html=True)
-st.markdown('<div class="navbar">🏠 "Home"; 📖 Recommender &nbsp; 📊 Clusters &nbsp; ℹ️ About</div>', unsafe_allow_html=True)
-st.write("")
+st.markdown('<div class="navbar">🏠 Home; 📖 Recommender &nbsp; 📊 Clusters &nbsp; ℹ️ About</div>', unsafe_allow_html=True)
+tab = option_menu(
+    menu_title=None, # Sembunyikan judul bawaan
+    options=["Home", "Recommender", "Clusters", "Upload Data", "About"],
+    icons=["house-door-fill", "star-fill", "search", "cloud-upload-fill", "info-circle-fill"], # Icon yang relevan
+    orientation="horizontal", # Kunci untuk membuatnya horizontal
+    styles={
+        # Style container agar mirip navbar kuning Anda
+        "container": {
+            "padding": "8px", 
+            "background-color": "#ffd100", # Warna kuning dari navbar Anda
+            "border-radius": "6px",
+            "gap": "12px",
+            "justify-content": "center"
+        },
+        # Style link agar mirip
+        "nav-link": {
+            "font-weight": "600",
+            "color": "#002855", # Warna biru tua
+            "text-align": "center",
+            "--hover-color": "#eee" # Warna saat mouse di atas
+        },
+        # Style link yang sedang aktif/dipilih
+        "nav-link-selected": {
+            "background-color": "#002855", # Latar biru tua
+            "color": "white" # Teks putih
+        },
+    }
+)
 
 # ---------------------------
 # Sidebar: Login / Register (Struktur dari File 1, Backend dari File 2)
@@ -423,6 +450,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
