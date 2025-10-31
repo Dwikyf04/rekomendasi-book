@@ -278,6 +278,7 @@ else:
                 st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
 
         if st.button("Recommend"):
+            with st.spinner("Sedang mencari rekomendasi terbaik... ⏳"):
             if books_df.empty:
                 st.error("Dataset tidak tersedia.")
             else:
@@ -299,7 +300,7 @@ else:
                         
                         sims = cosine_similarity(vec, tfidf_matrix).flatten()
                         top_idx = sims.argsort()[::-1][:top_k]
-                        st.subheader("Rekomendasi (TF-IDF)")
+                        st.subheader("Rekomendasi")
                         for i in top_idx:
                             st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
                             st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=180))
@@ -434,6 +435,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
