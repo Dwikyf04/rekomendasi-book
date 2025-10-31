@@ -64,7 +64,7 @@ def load_library_data(file_path="books.csv"):
 # =====================================
 # 🔹 TF-IDF + KMEANS
 # =====================================
-tfidf, svm_model, kmeans_model, knn_model = load_models()
+tfidf, svm_model, kmeans_model, knn_model = load_model()
 library_data = load_library_data()
 
 
@@ -150,6 +150,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
