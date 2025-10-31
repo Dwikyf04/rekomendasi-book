@@ -104,10 +104,10 @@ if "login" in st.session_state and st.session_state["login"]:
         # FIX 1: Pastikan path "models/" (dengan 's') sudah benar
         # FIX 2: Gunakan joblib.load()
         try:
-            tfidf_vectorizer = joblib.load("models/tfidf_vectorizer.pkl")
-            kmeans_model = joblib.load("models/kmeans_model.pkl")
-            knn_model = joblib.load("models/knn_model.pkl")
-            embeddings = joblib.load("models/embeddings.pkl")
+            tfidf_vectorizer = joblib.load("model/tfidf_vectorizer.pkl")
+            kmeans_model = joblib.load("model/kmeans_model.pkl")
+            knn_model = joblib.load("model/knn_model.pkl")
+            embeddings = joblib.load("model/embeddings.pkl")
             return tfidf_vectorizer, kmeans_model, knn_model, embeddings
         except FileNotFoundError:
             st.error("ERROR: File model tidak ditemukan. Pastikan folder 'models' ada di repositori Anda.")
@@ -121,7 +121,7 @@ if "login" in st.session_state and st.session_state["login"]:
     @st.cache_data
     def load_books():
         try:
-            return pd.read_csv("books.csv")
+            return pd.read_csv("data - books.csv")
         except FileNotFoundError:
             st.error("File 'books.csv' tidak ditemukan.")
             return pd.DataFrame()
@@ -238,3 +238,4 @@ if "login" in st.session_state and st.session_state["login"]:
     if st.sidebar.button("Logout"):
         st.session_state.clear()
         st.rerun() # FIX 5: Ganti ke st.rerun()
+
