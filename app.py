@@ -240,7 +240,7 @@ st.set_page_config(page_title="Book Repository", layout="wide")
 # ----------------------
 
 @st.cache_data
-def load_dataframe(file_path="df_books.pkl"):
+def load_dataframe(file_path="model/df_books.pkl"):
     """
     Memuat DataFrame buku yang sudah diproses dari file .pkl.
     """
@@ -264,7 +264,7 @@ def load_models():
     """
     Memuat semua model .pkl yang diperlukan.
     """
-    models_path = "" # Asumsi model ada di root, atau ganti "nama_folder/"
+    models_path = "model/" # Asumsi model ada di root, atau ganti "nama_folder/"
     try:
         tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
         kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
@@ -877,6 +877,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
