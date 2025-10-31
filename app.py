@@ -65,7 +65,7 @@ def load_models():
     """
     # -------------------------------------------------------------------
     # UBAH NAMA FOLDER DI BAWAH INI
-    models_path = "folder_model_anda/" 
+    models_path = "model/ 
     # -------------------------------------------------------------------
     
     if not os.path.exists(models_path):
@@ -74,13 +74,13 @@ def load_models():
 
     try:
         # Model yang Anda sebutkan:
-        tfidf_vec = joblib.load(os.path.join(models_path, "tfidf.pkl"))
-        kmeans_model = joblib.load(os.path.join(models_path, "kmean.pkl"))
-        knn_model = joblib.load(os.path.join(models_path, "knn.pkl")) # Model KNN dari SBERT
+        tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
+        kmeans_model = joblib.load(os.path.join(models_path, "kmean_model.pkl"))
+        knn_model = joblib.load(os.path.join(models_path, "knn_model.pkl")) # Model KNN dari SBERT
 
         # Data yang DIBUTUHKAN oleh knn_model
         # Anda masih butuh file ini agar knn.pkl bisa membandingkan query
-        sbert_embeddings = joblib.load(os.path.join(models_path, "sbert_embeddings.pkl"))
+        sbert_embeddings = joblib.load(os.path.join(models_path, "embeddings.pkl"))
         
         st.success("Model (4 file) berhasil dimuat.")
         return tfidf_vec, kmeans_model, knn_model, sbert_embeddings
@@ -434,3 +434,4 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
