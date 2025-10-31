@@ -29,7 +29,7 @@ st.set_page_config(page_title="UNAIR-like Book Recommender — Nanda",
                    page_icon="📚", layout="wide")
 
 APP_TITLE = "📚 Book Recommender — Nanda"
-TFIDF_PATH = "tfidf_vectorizer.pkl"
+TFIDF_PATH = "nodel/tfidf_vectorizer.pkl"
 KNN_PATH = "knn_model.pkl"
 KMEANS_PATH = "kmeans_model.pkl"
 DF_PATH = "df_books.pkl"   # your df pickle (can fallback to CSV upload)
@@ -422,3 +422,4 @@ elif tab == "About":
 # footer
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. For production, secure your credentials and hosts.")
+
