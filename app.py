@@ -76,6 +76,7 @@ def load_models():
         # Model yang Anda sebutkan:
         tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
         kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
+        books_df = pickle.load(os.path.join(models_path,"model/books_df.pkl"))
         knn_model = joblib.load(os.path.join(models_path, "knn_model.pkl")) # Model KNN dari SBERT
 
         # Data yang DIBUTUHKAN oleh knn_model
@@ -83,7 +84,7 @@ def load_models():
         sbert_embeddings = joblib.load(os.path.join(models_path, "embeddings.pkl"))
         
         st.success("Model (4 file) berhasil dimuat.")
-        return tfidf_vec, kmeans_model, knn_model, sbert_embeddings
+        return tfidf_vec, kmeans_model, knn_model, sbert_embeddings, books_df
     
     except FileNotFoundError as e:
         st.error(f"File model tidak ditemukan: {e}.")
@@ -185,13 +186,20 @@ if selected_page == "Beranda":
     st.info("ℹ️ **Selamat Datang di Sistem Rekomendasi Buku!** Temukan buku favorit Anda berikutnya di sini.")
 
     # 2. Search Bar (Mirip target)
-    st.text_input(
-        "Search, what are you looking for?", 
-        placeholder="Cari berdasarkan judul, penulis, atau topik...",
-        key="home_search"
-    )
-    
+    judul_input = st.text_input("Masukkan judul buku atau kata kunci:")
     st.write("") # Memberi spasi
+    if st.button("Cari Rekomendasi"):
+        if judul_input.strip() != "":
+            # Transform input menggunakan TF-IDF
+            input_vec = tfidf.transform([judul_input])
+            sim_scores = cosine_similarity(input_vec, tfidf.transform(books_df['title'])).flatten()
+
+            # Ambil top-5 rekomendasi
+            top_indices = sim_scores.argsort()[-5:][::-1]
+            rekom = books_df.iloc[top_indices][['title', 'authors', 'average_rating']]
+
+            st.subheader("📖 Rekomendasi Buku untukmu:")
+            st.table(rekom)
     
     # 3. Grid Ikon (Menggunakan HTML/CSS kustom untuk meniru tampilan)
     
@@ -510,6 +518,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
