@@ -1,6 +1,3 @@
-# streamlit_book_recommender_app.py
-# Portofolio App: Book Recommendation System
-# Built for Nanda — combines TF-IDF, fuzzy search, KNN (embedding), and K-Means clustering
 
 import streamlit as st
 import pandas as pd
@@ -14,12 +11,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
+from sentence_transformers import SentenceTransformer, util
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 
 # Optional: semantic embeddings (SentenceTransformers). If not available the app still runs with TF-IDF.
 try:
-    from sentence_transformers import SentenceTransformer, util
     HAS_SBERT = True
 except Exception:
     HAS_SBERT = False
@@ -100,8 +97,8 @@ else:
     tfidf_vectorizer, tfidf_matrix = None, None
 
 # Try to load optional precomputed artifacts (model files) if present
-KMEANS_PATH = 'models/kmeans.pkl'
-SBERT_PATH = 'models/book_embeddings.pkl'  # optional
+KMEANS_PATH = 'model/kmeans.pkl'
+SBERT_PATH = 'model/book_embeddings.pkl'  # optional
 
 kmeans_model = None
 if os.path.exists(KMEANS_PATH):
@@ -285,3 +282,4 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
