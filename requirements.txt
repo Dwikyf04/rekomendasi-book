@@ -9,4 +9,7 @@ thefuzz
 sentence_transformers
 wordcloud
 gspread
-
+streamlit-folium
+oauth2client
+folium
+pyspellchecker
