@@ -332,7 +332,7 @@ elif selected_page == "Analisis Teks":
         0: "Fiksi & Sastra",
         1: "Teknis & Sains",
         2: "Self-Help & Bisnis",
-        3_ : "Biografi & Sejarah"
+        3: "Biografi & Sejarah"
         # ... sesuaikan dengan jumlah K Anda
     }
 
@@ -481,3 +481,4 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
