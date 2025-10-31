@@ -19,6 +19,21 @@ st.set_page_config(
 st.title("📚 Book Recommendation Dashboard")
 st.write("Sistem rekomendasi buku berbasis **TF-IDF**, **Cosine Similarity**, dan **K-Means Clustering**")
 
+def load_models():
+    """
+    Memuat model TF-IDF, SVM, dan K-Means dari file .pkl.
+    """
+    try:
+        tfidf = joblib.load("Model/tfidf_vectorizer.pkl")
+        kmeans_model = joblib.load("Model/kmeans.pkl")
+        return tfidf, kmeans_model
+    except FileNotFoundError:
+        st.error("File model (.pkl) tidak ditemukan di folder /Models.")
+        return None, None, None
+    except Exception as e:
+        st.error(f"Gagal memuat model: {e}")
+        return None, None, None
+
 # =====================================
 # 🔹 LOAD DATA
 # =====================================
@@ -115,6 +130,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
