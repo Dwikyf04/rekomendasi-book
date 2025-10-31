@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
@@ -27,8 +28,9 @@ def load_models():
     """
     try:
         tfidf = joblib.load("Model/tfidf_vectorizer.pkl")
-        kmeans_model = joblib.load("Model/kmeans.pkl")
-        return tfidf, kmeans_model
+        kmeans_model = joblib.load("Model/kmeans_model.pkl")
+        knn_model = joblib.load("Model/knn_model.pkl")
+        return tfidf, kmeans_model, knn_model
     except FileNotFoundError:
         st.error("File model (.pkl) tidak ditemukan di folder /Models.")
         return None, None, None
@@ -143,6 +145,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
