@@ -1,6 +1,7 @@
 # app.py
 # Book Recommender Portfolio — Nanda
-# GABUNGAN: UI (File 1) + Database SQLite (File 2) + Model Joblib (File 1)
+# GABUNGAN FINAL: UI (UNAIR) + DB (SQLite) + Model (Joblib)
+# BARU: Model dan Data hanya dimuat SETELAH login berhasil.
 
 import streamlit as st
 import pandas as pd
@@ -96,7 +97,7 @@ def get_history(username):
 create_usertable()
 
 # ---------------------------
-# Helpers for models & data (dari File 1)
+# Helpers for models & data (Definisi Global)
 # ---------------------------
 @st.cache_resource
 def load_models():
@@ -105,6 +106,7 @@ def load_models():
     kmeans_model = joblib.load(os.path.join(MODELS_DIR, "kmeans_model.pkl"))
     knn_model = joblib.load(os.path.join(MODELS_DIR, "knn_model.pkl"))
     embeddings = joblib.load(os.path.join(MODELS_DIR, "embeddings.pkl"))
+    st.success("Model berhasil dimuat ke cache.") # Notif saat pertama kali load
     return tfidf_vectorizer, kmeans_model, knn_model, embeddings
 
 def ensure_text_column(df):
@@ -115,6 +117,21 @@ def ensure_text_column(df):
         else:
             df['text'] = df['title'].astype(str)
     return df
+
+@st.cache_data
+def load_books(file_path):
+    if not os.path.exists(file_path):
+        st.sidebar.warning(f"{file_path} tidak ditemukan. Gunakan tab 'Upload Data'.")
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(file_path)
+        df = ensure_text_column(df)
+        df['title_norm'] = df['title'].astype(str).str.strip()
+        return df
+    except Exception as e:
+        st.sidebar.error(f"Gagal membaca {file_path}: {e}")
+        return pd.DataFrame()
+
 
 def fuzzy_match(query, choices):
     try:
@@ -130,31 +147,7 @@ def fuzzy_match(query, choices):
     return None, 0
 
 # ---------------------------
-# Load models & data
-# ---------------------------
-try:
-    tfidf, kmeans_model, knn_model, embeddings = load_models()
-except FileNotFoundError:
-    st.error("Gagal memuat file model. Pastikan folder 'model' dan file .pkl ada.")
-    st.stop()
-except Exception as e:
-    st.error(f"Error saat memuat model: {e}")
-    st.stop()
-
-
-books_df = pd.DataFrame()
-if os.path.exists(BOOKS_CSV):
-    try:
-        books_df = pd.read_csv(BOOKS_CSV)
-        books_df = ensure_text_column(books_df)
-        books_df['title_norm'] = books_df['title'].astype(str).str.strip()
-    except Exception as e:
-        st.sidebar.error(f"Failed to read books.csv: {e}")
-else:
-    st.sidebar.warning("data - books.csv tidak ditemukan. Gunakan tab 'Upload Data'.")
-
-# ---------------------------
-# UI styling (UNAIR-like, dari File 1)
+# UI Header (UNAIR-like, dari File 1)
 # ---------------------------
 st.markdown("""
 <style>
@@ -203,7 +196,6 @@ elif menu == "Profile":
         u = st.session_state['username']
         st.sidebar.write(f"Logged in as **{u}**")
         
-        # Tampilkan riwayat dari SQLite
         history = get_history(u)
         if history:
             st.sidebar.write("Riwayat pencarian:")
@@ -213,214 +205,223 @@ elif menu == "Profile":
         
         if st.sidebar.button("Logout"):
             st.session_state.clear()
-            st.rerun() # Ganti experimental_rerun
+            st.rerun()
     else:
         st.sidebar.info("Anda belum login. Silakan login.")
 
-# ---------------------------
-# Main Tabs (dari File 1)
-# ---------------------------
-tab = st.selectbox("", ["Home", "Recommender", "Clusters", "Upload Data", "About"])
+# ----------------------------------------------------
+# MAIN APP - HANYA JALAN JIKA SUDAH LOGIN
+# ----------------------------------------------------
+if 'logged_in' not in st.session_state or not st.session_state.get('logged_in'):
+    st.info("ℹ️ Silakan login atau register melalui menu di sidebar untuk menggunakan aplikasi.")
+else:
+    # --- PANGGILAN MODEL & DATA DIPINDAHKAN KE SINI ---
+    try:
+        tfidf, kmeans_model, knn_model, embeddings = load_models()
+    except FileNotFoundError:
+        st.error("Gagal memuat file model. Pastikan folder 'model' dan file .pkl ada.")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error saat memuat model: {e}")
+        st.stop()
 
-# ------- Home -------
-if tab == "Home":
-    st.markdown('<div class="card"><h3>Welcome</h3><p>Aplikasi portofolio ini mendemonstrasikan rekomendasi buku berbasis TF-IDF dan semantik. Login untuk fitur personalisasi.</p></div>', unsafe_allow_html=True)
-    if not books_df.empty:
-        st.write(f"Dataset: {len(books_df)} buku")
-        st.dataframe(books_df[['title','authors','categories']].head(8))
-    else:
-        st.info("Dataset belum dimuat. Pergi ke tab 'Upload Data' untuk mengunggah 'data - books.csv'.")
+    books_df = load_books(BOOKS_CSV)
+    # --- AKHIR DARI PEMUATAN ---
 
-# ------- Recommender -------
-elif tab == "Recommender":
-    st.header("🔎 Book Recommender")
-    if 'logged_in' not in st.session_state or not st.session_state.get('logged_in'):
-        st.warning("Silakan login untuk menyimpan riwayat pencarian.")
-    
-    col1, col2 = st.columns([3,1])
-    query = col1.text_input("Cari judul buku (typo OK):", value="")
-    method = col2.selectbox("Method", ["TF-IDF Cosine", "Embedding + KNN", "Hybrid (TFIDF+Embedding)"])
-    top_k = st.slider("Top K", 3, 12, 6)
+    # --- UI Utama (Tabs) sekarang ada di dalam 'else' ---
+    tab = st.selectbox("", ["Home", "Recommender", "Clusters", "Upload Data", "About"])
 
-    # Fuzzy suggestion
-    cand = None
-    if query and not books_df.empty:
-        cand, score = fuzzy_match(query, books_df['title_norm'].tolist())
-        if cand:
-            st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
-
-    if st.button("Recommend"):
-        if books_df.empty:
-            st.error("Dataset tidak tersedia.")
+    # ------- Home -------
+    if tab == "Home":
+        st.markdown('<div class="card"><h3>Welcome</h3><p>Aplikasi portofolio ini mendemonstrasikan rekomendasi buku berbasis TF-IDF dan semantik. Login untuk fitur personalisasi.</p></div>', unsafe_allow_html=True)
+        if not books_df.empty:
+            st.write(f"Dataset: {len(books_df)} buku")
+            st.dataframe(books_df[['title','authors','categories']].head(8))
         else:
-            # Siapkan TF-IDF Matrix (dihitung sekali saat tombol ditekan)
-            tfidf_matrix = None
-            try:
-                tfidf_matrix = tfidf.transform(books_df['text'].fillna('').tolist())
-            except Exception:
-                st.error("Gagal membuat TF-IDF Matrix dari kolom 'text'.")
+            st.info("Dataset belum dimuat. Pergi ke tab 'Upload Data' untuk mengunggah 'data - books.csv'.")
 
-            # --- Logika TF-IDF Cosine ---
-            if method == "TF-IDF Cosine":
-                if tfidf_matrix is None:
-                    st.error("Model TF-IDF tidak tersedia.")
-                else:
-                    if cand: # Jika ada fuzzy match, gunakan itu
-                        idx = books_df[books_df['title_norm']==cand].index[0]
-                        vec = tfidf_matrix[idx]
-                    else: # Jika tidak, transform query
-                        vec = tfidf.transform([query])
-                    
-                    sims = cosine_similarity(vec, tfidf_matrix).flatten()
-                    top_idx = sims.argsort()[::-1][:top_k]
-                    st.subheader("Rekomendasi (TF-IDF)")
-                    for i in top_idx:
-                        st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
-                        st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=180))
-                        st.caption(f"Score: {sims[i]:.4f}")
-                        st.markdown("---")
-                    
-                    if 'username' in st.session_state:
-                        add_history(st.session_state['username'], query, "TF-IDF")
+    # ------- Recommender -------
+    elif tab == "Recommender":
+        st.header("🔎 Book Recommender")
+        
+        col1, col2 = st.columns([3,1])
+        query = col1.text_input("Cari judul buku (typo OK):", value="")
+        method = col2.selectbox("Method", ["TF-IDF Cosine", "Embedding + KNN", "Hybrid (TFIDF+Embedding)"])
+        top_k = st.slider("Top K", 3, 12, 6)
 
-            # --- Logika Embedding + KNN ---
-            elif method == "Embedding + KNN":
-                if embeddings is None and not HAS_SBERT:
-                    st.error("Embeddings tidak ada dan sentence-transformers tidak terinstal.")
-                else:
-                    try:
-                        emb_array = np.array(embeddings) # Asumsi embeddings adalah array/list
-                        
-                        # Dapatkan query vector (q_emb)
-                        q_emb = None
-                        if cand and HAS_SBERT: # Jika ada fuzzy match, encode judul yang di-match
-                            s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                            q_emb = s_model.encode(cand, convert_to_tensor=False).reshape(1,-1)
-                        elif HAS_SBERT: # Jika tidak, encode query asli
-                            s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                            q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
-                        else:
-                            st.error("Butuh 'sentence-transformers' untuk encode query.")
+        cand = None
+        if query and not books_df.empty:
+            cand, score = fuzzy_match(query, books_df['title_norm'].tolist())
+            if cand:
+                st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
 
-                        if q_emb is not None:
-                            # Gunakan knn_model yang sudah di-load
-                            dists, idxs = knn_model.kneighbors(q_emb, n_neighbors=top_k)
-                            
-                            st.subheader("Rekomendasi (Embedding + KNN)")
-                            for dist, idx in zip(dists.flatten(), idxs.flatten()):
-                                st.markdown(f"**{books_df.iloc[idx]['title']}** — {books_df.iloc[idx].get('authors','')}")
-                                st.caption(f"Similarity: {1.0 - dist:.4f} (Distance: {dist:.4f})")
-                                st.write(shorten(str(books_df.iloc[idx].get('description',books_df.iloc[idx].get('text',''))), width=160))
-                                st.markdown("---")
-                            
-                            if 'username' in st.session_state:
-                                add_history(st.session_state['username'], query, "EMBEDDING_KNN")
-                    except Exception as e:
-                        st.error(f"Error Embedding KNN: {e}")
-
-            # --- Logika Hybrid ---
-            elif method == "Hybrid (TFIDF+Embedding)":
-                alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5)
-                if tfidf_matrix is None or (embeddings is None and not HAS_SBERT):
-                    st.error("Model yang dibutuhkan untuk Hybrid tidak tersedia.")
-                else:
-                    # Hitung skor tfidf
-                    try:
-                        vec = tfidf.transform([query])
-                        tfidf_sim = cosine_similarity(vec, tfidf_matrix).flatten()
-                    except Exception:
-                        tfidf_sim = np.zeros(len(books_df))
-
-                    # Hitung skor embedding
-                    try:
-                        emb_array = np.array(embeddings)
-                        q_emb = None
-                        if HAS_SBERT:
-                            s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                            q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
-                        
-                        if q_emb is not None:
-                            emb_sim = cosine_similarity(q_emb, emb_array).flatten()
-                        else:
-                            emb_sim = np.zeros(len(books_df))
-                    except Exception:
-                        emb_sim = np.zeros(len(books_df))
-
-                    # Normalisasi dan gabungkan
-                    tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
-                    eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
-                    combined = alpha * eb_norm + (1 - alpha) * tf_norm
-                    
-                    top_idx = combined.argsort()[::-1][:top_k]
-                    st.subheader("Rekomendasi (Hybrid)")
-                    for i in top_idx:
-                        st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
-                        st.caption(f"Skor Gabungan: {combined[i]:.4f}")
-                        st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=160))
-                        st.markdown("---")
-                    
-                    if 'username' in st.session_state:
-                        add_history(st.session_state['username'], query, "HYBRID")
-
-# ------- Clusters -------
-elif tab == "Clusters":
-    st.header("📂 K-Means Clustering")
-    if books_df.empty:
-        st.warning("Dataset tidak tersedia.")
-    else:
-        k = st.slider("Jumlah clusters (k)", 2, 20, 6)
-        if st.button("Bangun/Bangun Ulang KMeans"):
-            if tfidf is None:
-                st.error("Model TF-IDF dibutuhkan untuk membangun cluster.")
+        if st.button("Recommend"):
+            if books_df.empty:
+                st.error("Dataset tidak tersedia.")
             else:
+                tfidf_matrix = None
+                try:
+                    tfidf_matrix = tfidf.transform(books_df['text'].fillna('').tolist())
+                except Exception:
+                    st.error("Gagal membuat TF-IDF Matrix dari kolom 'text'.")
+
+                if method == "TF-IDF Cosine":
+                    if tfidf_matrix is None:
+                        st.error("Model TF-IDF tidak tersedia.")
+                    else:
+                        if cand:
+                            idx = books_df[books_df['title_norm']==cand].index[0]
+                            vec = tfidf_matrix[idx]
+                        else:
+                            vec = tfidf.transform([query])
+                        
+                        sims = cosine_similarity(vec, tfidf_matrix).flatten()
+                        top_idx = sims.argsort()[::-1][:top_k]
+                        st.subheader("Rekomendasi (TF-IDF)")
+                        for i in top_idx:
+                            st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
+                            st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=180))
+                            st.caption(f"Score: {sims[i]:.4f}")
+                            st.markdown("---")
+                        
+                        if 'username' in st.session_state:
+                            add_history(st.session_state['username'], query, "TF-IDF")
+
+                elif method == "Embedding + KNN":
+                    if embeddings is None and not HAS_SBERT:
+                        st.error("Embeddings tidak ada dan sentence-transformers tidak terinstal.")
+                    else:
+                        try:
+                            emb_array = np.array(embeddings)
+                            q_emb = None
+                            if HAS_SBERT:
+                                s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                q_emb_query = query if not cand else cand # Gunakan fuzzy match jika ada
+                                q_emb = s_model.encode(q_emb_query, convert_to_tensor=False).reshape(1,-1)
+                            else:
+                                st.error("Butuh 'sentence-transformers' untuk encode query.")
+
+                            if q_emb is not None:
+                                dists, idxs = knn_model.kneighbors(q_emb, n_neighbors=top_k)
+                                
+                                st.subheader("Rekomendasi (Embedding + KNN)")
+                                for dist, idx in zip(dists.flatten(), idxs.flatten()):
+                                    st.markdown(f"**{books_df.iloc[idx]['title']}** — {books_df.iloc[idx].get('authors','')}")
+                                    st.caption(f"Similarity: {1.0 - dist:.4f} (Distance: {dist:.4f})")
+                                    st.write(shorten(str(books_df.iloc[idx].get('description',books_df.iloc[idx].get('text',''))), width=160))
+                                    st.markdown("---")
+                                
+                                if 'username' in st.session_state:
+                                    add_history(st.session_state['username'], query, "EMBEDDING_KNN")
+                        except Exception as e:
+                            st.error(f"Error Embedding KNN: {e}")
+
+                elif method == "Hybrid (TFIDF+Embedding)":
+                    alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5)
+                    if tfidf_matrix is None or (embeddings is None and not HAS_SBERT):
+                        st.error("Model yang dibutuhkan untuk Hybrid tidak tersedia.")
+                    else:
+                        # Skor tfidf
+                        try:
+                            vec = tfidf.transform([query])
+                            tfidf_sim = cosine_similarity(vec, tfidf_matrix).flatten()
+                        except Exception:
+                            tfidf_sim = np.zeros(len(books_df))
+
+                        # Skor embedding
+                        try:
+                            emb_array = np.array(embeddings)
+                            q_emb = None
+                            if HAS_SBERT:
+                                s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                            
+                            if q_emb is not None:
+                                emb_sim = cosine_similarity(q_emb, emb_array).flatten()
+                            else:
+                                emb_sim = np.zeros(len(books_df))
+                        except Exception:
+                            emb_sim = np.zeros(len(books_df))
+
+                        # Normalisasi dan gabungkan
+                        tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
+                        eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
+                        combined = alpha * eb_norm + (1 - alpha) * tf_norm
+                        
+                        top_idx = combined.argsort()[::-1][:top_k]
+                        st.subheader("Rekomendasi (Hybrid)")
+                        for i in top_idx:
+                            st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
+                            st.caption(f"Skor Gabungan: {combined[i]:.4f}")
+                            st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=160))
+                            st.markdown("---")
+                        
+                        if 'username' in st.session_state:
+                            add_history(st.session_state['username'], query, "HYBRID")
+
+    # ------- Clusters -------
+    elif tab == "Clusters":
+        st.header("📂 K-Means Clustering")
+        if books_df.empty:
+            st.warning("Dataset tidak tersedia.")
+        else:
+            k = st.slider("Jumlah clusters (k)", 2, 20, 6)
+            if st.button("Bangun/Bangun Ulang KMeans"):
+                if tfidf is None:
+                    st.error("Model TF-IDF dibutuhkan untuk membangun cluster.")
+                else:
+                    try:
+                        with st.spinner("Menghitung TF-IDF Matrix..."):
+                            X = tfidf.transform(books_df['text'].fillna('').tolist())
+                        with st.spinner(f"Melatih K-Means dengan k={k}..."):
+                            km = KMeans(n_clusters=k, random_state=42, n_init=10)
+                            labels = km.fit_predict(X)
+                        
+                        books_df['cluster'] = labels
+                        os.makedirs(MODELS_DIR, exist_ok=True)
+                        joblib.dump(km, os.path.join(MODELS_DIR, "kmeans_model.pkl"))
+                        st.success(f"KMeans (k={k}) dibangun dan disimpan ke models/kmeans_model.pkl")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error K-Means: {e}")
+            
+            cluster_labels = None
+            if 'cluster' in books_df.columns:
+                 cluster_labels = books_df['cluster']
+            elif kmeans_model and tfidf:
                 try:
                     X = tfidf.transform(books_df['text'].fillna('').tolist())
-                    km = KMeans(n_clusters=k, random_state=42, n_init=10) # n_init=10 untuk hindari warning
-                    labels = km.fit_predict(X)
-                    books_df['cluster'] = labels
-                    os.makedirs(MODELS_DIR, exist_ok=True)
-                    joblib.dump(km, os.path.join(MODELS_DIR, "kmeans_model.pkl"))
-                    st.success(f"KMeans (k={k}) dibangun dan disimpan ke models/kmeans_model.pkl")
-                except Exception as e:
-                    st.error(f"Error K-Means: {e}")
-        
-        # Tampilkan cluster jika sudah ada di model atau di dataframe
-        cluster_labels = None
-        if 'cluster' in books_df.columns:
-             cluster_labels = books_df['cluster']
-        elif kmeans_model and tfidf:
+                    cluster_labels = kmeans_model.predict(X)
+                    books_df['cluster'] = cluster_labels
+                except Exception:
+                    st.info("Cluster default dari model tidak dapat dimuat.")
+
+            if cluster_labels is not None:
+                st.write(books_df.groupby('cluster').size().reset_index(name='count'))
+                sel = st.selectbox("Pilih cluster", sorted(books_df['cluster'].unique()))
+                st.dataframe(books_df[books_df['cluster']==sel][['title','authors','categories']].head(50))
+
+    # ------- Upload Data -------
+    elif tab == "Upload Data":
+        st.header("📁 Upload dataset (data - books.csv)")
+        uploaded = st.file_uploader("Upload CSV (kolom: title, authors, categories, description, dll.)", type=['csv'])
+        if uploaded is not None:
             try:
-                X = tfidf.transform(books_df['text'].fillna('').tolist())
-                cluster_labels = kmeans_model.predict(X)
-                books_df['cluster'] = cluster_labels
-            except Exception:
-                st.info("Cluster default dari model tidak dapat dimuat.")
+                df_new = pd.read_csv(uploaded)
+                df_new.to_csv(BOOKS_CSV, index=False)
+                st.success("File 'data - books.csv' berhasil diunggah. Muat ulang aplikasi (tekan R) untuk menggunakan dataset baru.")
+                st.cache_data.clear() # Hapus cache data
+                st.cache_resource.clear() # Hapus cache model
+            except Exception as e:
+                st.error(f"Gagal mengunggah: {e}")
 
-        if cluster_labels is not None:
-            st.write(books_df.groupby('cluster').size().reset_index(name='count'))
-            sel = st.selectbox("Pilih cluster", sorted(books_df['cluster'].unique()))
-            st.dataframe(books_df[books_df['cluster']==sel][['title','authors','categories']].head(50))
+    # ------- About -------
+    elif tab == "About":
+        st.header("Tentang Aplikasi Ini")
+        st.write("Aplikasi portofolio oleh Nanda. Mendemonstrasikan TF-IDF, embeddings, KNN, dan KMeans untuk rekomendasi buku.")
+        st.write("Model file dimuat dari folder `/model`. Database pengguna disimpan di `users.db`.")
+        st.write("Untuk produksi: amankan kredensial, gunakan DB remote, dan jangan commit dataset privat ke GitHub.")
 
-# ------- Upload Data -------
-elif tab == "Upload Data":
-    st.header("📁 Upload dataset (data - books.csv)")
-    uploaded = st.file_uploader("Upload CSV (kolom: title, authors, categories, description, dll.)", type=['csv'])
-    if uploaded is not None:
-        try:
-            df_new = pd.read_csv(uploaded)
-            df_new.to_csv(BOOKS_CSV, index=False)
-            st.success("File 'data - books.csv' berhasil diunggah. Muat ulang aplikasi (tekan R) untuk menggunakan dataset baru.")
-            st.cache_data.clear() # Hapus cache data
-        except Exception as e:
-            st.error(f"Gagal mengunggah: {e}")
-
-# ------- About -------
-elif tab == "About":
-    st.header("Tentang Aplikasi Ini")
-    st.write("Aplikasi portofolio oleh Nanda. Mendemonstrasikan TF-IDF, embeddings, KNN, dan KMeans untuk rekomendasi buku.")
-    st.write("Model file dimuat dari folder `/model`. Database pengguna disimpan di `users.db`.")
-    st.write("Untuk produksi: amankan kredensial, gunakan DB remote, dan jangan commit dataset privat ke GitHub.")
-
-# Footer
+# Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
