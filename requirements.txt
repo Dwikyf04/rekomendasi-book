@@ -13,4 +13,3 @@ streamlit-folium
 oauth2client
 folium
 pyspellchecker
-
