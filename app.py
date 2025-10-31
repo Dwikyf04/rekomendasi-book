@@ -64,16 +64,21 @@ def load_library_data(file_path="books.csv"):
 # =====================================
 # 🔹 TF-IDF + KMEANS
 # =====================================
-tfidf = TfidfVectorizer(stop_words="english")
-tfidf_matrix = tfidf.fit_transform(df["title"])
+tfidf, svm_model, kmeans_model, knn_model = load_models()
+library_data = load_library_data()
 
-k = 10
-kmeans = KMeans(n_clusters=k, random_state=42)
-df["cluster"] = kmeans.fit_predict(tfidf_matrix)
 
 # =====================================
 # 🔹 FUNGSI REKOMENDASI
 # =====================================
+if selected_page == "Beranda":
+    st.markdown("""
+        <div style='text-align:center; padding: 20px;'>
+            <h1>Sistem Rekomendasi Perpustakaan Indonesia</h1>
+            <p style='font-size:18px;'>Cari perpustakaan terbaik berbasis analisis ribuan ulasan Google Maps dengan NLP & Machine Learning</p>
+        </div>
+    """, unsafe_allow_html=True)
+    st.divider()
 def get_tfidf_recommendations(title_input, df, tfidf_matrix, top_n=5):
     try:
         idx = df[df["title"].str.lower().str.contains(title_input.lower(), na=False)].index[0]
@@ -145,6 +150,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
