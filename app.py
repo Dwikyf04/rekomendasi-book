@@ -160,7 +160,7 @@ st.markdown("""
 st.markdown('<div class="header"><h2>Book Recommender (Nanda)</h2></div>', unsafe_allow_html=True)
 tab = option_menu(
     menu_title=None, 
-    options=["Home", "Recommender", "Clusters", "Upload Data", "About"],
+    options=["Home", "Recommender", "Clusters", "About"],
     icons=["house-door-fill", "star-fill", "search", "cloud-upload-fill", "info-circle-fill"], 
     orientation="horizontal",
     styles={
@@ -423,19 +423,6 @@ else:
                 sel = st.selectbox("Pilih cluster", sorted(books_df['cluster'].unique()))
                 st.dataframe(books_df[books_df['cluster']==sel][['title','authors','categories']].head(50))
 
-    # ------- Upload Data -------
-    elif tab == "Upload Data":
-        st.header("📁 Upload dataset (data - books.csv)")
-        uploaded = st.file_uploader("Upload CSV (kolom: title, authors, categories, description, dll.)", type=['csv'])
-        if uploaded is not None:
-            try:
-                df_new = pd.read_csv(uploaded)
-                df_new.to_csv(BOOKS_CSV, index=False)
-                st.success("File 'data - books.csv' berhasil diunggah. Muat ulang aplikasi (tekan R) untuk menggunakan dataset baru.")
-                st.cache_data.clear() # Hapus cache data
-                st.cache_resource.clear() # Hapus cache model
-            except Exception as e:
-                st.error(f"Gagal mengunggah: {e}")
 
     # ------- About -------
     elif tab == "About":
@@ -447,6 +434,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
