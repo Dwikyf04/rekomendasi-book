@@ -27,9 +27,9 @@ except Exception:
 # ---------------------------
 st.set_page_config(page_title="Book Recommender — Nanda", page_icon="📚", layout="wide")
 ROOT = os.getcwd()
-MODELS_DIR = os.path.join(ROOT, "model")
+MODELS_DIR = os.path.join(ROOT, "models")
 USERS_FILE = os.path.join(ROOT, "users.json")
-BOOKS_CSV = os.path.join(ROOT, "books.csv")
+BOOKS_CSV = os.path.join(ROOT, "data - books.csv")
 
 # ---------------------------
 # Utilities: users.json
@@ -424,4 +424,5 @@ elif tab == "About":
 # Footer
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Use responsibly.")
+
 
