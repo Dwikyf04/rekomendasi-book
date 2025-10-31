@@ -1,244 +1,426 @@
+# app.py
+# Book Recommender Portfolio — Nanda
+# Uses joblib to load models from models/ folder
+# Login & Register saved in users.json
+# Recommendation methods: TF-IDF, Embedding+KNN, Hybrid, KMeans
+
 import streamlit as st
 import pandas as pd
-# import pickle  <- HAPUS
-import joblib  # <-- FIX 2: Gunakan joblib
 import numpy as np
-import sqlite3
-import hashlib
+import joblib
+import os, json, hashlib, time
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import NearestNeighbors
-import plotly.express as px
+from sklearn.cluster import KMeans
+from textwrap import shorten
 
-# ======================================================
-# 1️⃣ CONFIG STREAMLIT
-# ======================================================
-st.set_page_config(
-    page_title="Book Recommendation | Nanda",
-    page_icon="📚",
-    layout="wide"
-)
+# Optional semantic model
+HAS_SBERT = False
+try:
+    from sentence_transformers import SentenceTransformer
+    HAS_SBERT = True
+except Exception:
+    HAS_SBERT = False
 
-# ======================================================
-# 2️⃣ STYLE
-# ======================================================
+# ---------------------------
+# Config
+# ---------------------------
+st.set_page_config(page_title="Book Recommender — Nanda", page_icon="📚", layout="wide")
+ROOT = os.getcwd()
+MODELS_DIR = os.path.join(ROOT, "models")
+USERS_FILE = os.path.join(ROOT, "users.json")
+BOOKS_CSV = os.path.join(ROOT, "books.csv")
+
+# ---------------------------
+# Utilities: users.json
+# ---------------------------
+def ensure_users_file():
+    if not os.path.exists(USERS_FILE):
+        init = {"users": {}}
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(init, f, indent=2)
+
+def load_users():
+    ensure_users_file()
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_users(data):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def hash_password(password: str):
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+def register_user(username, password):
+    data = load_users()
+    if username in data["users"]:
+        return False, "Username sudah terdaftar."
+    data["users"][username] = {"password": hash_password(password), "history": []}
+    save_users(data)
+    return True, "Registrasi berhasil."
+
+def authenticate_user(username, password):
+    data = load_users()
+    pwd_hash = hash_password(password)
+    user = data["users"].get(username)
+    if user and user.get("password") == pwd_hash:
+        return True
+    return False
+
+def add_history(username, query, method):
+    data = load_users()
+    if username not in data["users"]:
+        return
+    entry = {"time": int(time.time()), "query": query, "method": method}
+    data["users"][username].setdefault("history", []).insert(0, entry)
+    # limit history length
+    data["users"][username]["history"] = data["users"][username]["history"][:200]
+    save_users(data)
+
+# ---------------------------
+# Helpers for models & data
+# ---------------------------
+@st.cache_resource
+def load_models():
+    # returns (tfidf, kmeans, knn, embeddings)
+    def safe_load(path):
+        if os.path.exists(path):
+            try:
+                return joblib.load(path)
+            except Exception as e:
+                st.sidebar.error(f"Failed to load {os.path.basename(path)}: {e}")
+                return None
+        else:
+            st.sidebar.warning(f"Missing: {os.path.basename(path)}")
+            return None
+
+    tfidf = safe_load(os.path.join(MODELS_DIR, "tfidf_vectorizer.pkl"))
+    kmeans = safe_load(os.path.join(MODELS_DIR, "kmeans_model.pkl"))
+    knn = safe_load(os.path.join(MODELS_DIR, "knn_model.pkl"))
+    embeddings = safe_load(os.path.join(MODELS_DIR, "embeddings.pkl"))
+    return tfidf, kmeans, knn, embeddings
+
+def ensure_text_column(df):
+    if 'text' not in df.columns:
+        cols = [c for c in ['title','subtitle','authors','categories','description'] if c in df.columns]
+        if cols:
+            df['text'] = df[cols].fillna('').agg(' '.join, axis=1)
+        else:
+            df['text'] = df['title'].astype(str)
+    return df
+
+def fuzzy_match(query, choices):
+    try:
+        from thefuzz import process
+        match = process.extractOne(query, choices)
+        if match:
+            return match[0], match[1]
+    except Exception:
+        import difflib
+        matches = difflib.get_close_matches(query, choices, n=1)
+        if matches:
+            return matches[0], 80
+    return None, 0
+
+# ---------------------------
+# Load models & data
+# ---------------------------
+tfidf, kmeans_model, knn_model, embeddings = load_models()
+
+# Load books.csv if exists
+books_df = pd.DataFrame()
+if os.path.exists(BOOKS_CSV):
+    try:
+        books_df = pd.read_csv(BOOKS_CSV)
+        books_df = ensure_text_column(books_df)
+        books_df['title_norm'] = books_df['title'].astype(str).str.strip()
+    except Exception as e:
+        st.sidebar.error(f"Failed to read books.csv: {e}")
+else:
+    st.sidebar.warning("books.csv not found. Use Upload Data tab to upload dataset.")
+
+# ---------------------------
+# UI styling (UNAIR-like)
+# ---------------------------
 st.markdown("""
-    <style>
-        body { background-color: #F8FAFC; }
-        .main {
-            background-color: white; padding: 20px;
-            border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .stButton>button {
-            background-color: #003366; color: white;
-            border-radius: 8px; border: none; padding: 10px 20px;
-        }
-        .stButton>button:hover { background-color: #00509E; }
-        h1, h2, h3 { color: #003366; }
-    </style>
+<style>
+.header { background-color:#002855; color:white; padding:16px; border-radius:6px; text-align:center; }
+.navbar { background-color:#ffd100; padding:8px; border-radius:6px; display:flex; gap:12px; justify-content:center; font-weight:600;}
+.search { text-align:center; margin-top:18px; }
+.search-input{ width:60%; padding:12px; font-size:18px; border-radius:10px; border:1px solid #ccc; }
+.card { background:white; padding:12px; border-radius:10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+</style>
 """, unsafe_allow_html=True)
 
-# ======================================================
-# 3️⃣ DATABASE USER (SQLite)
-# ======================================================
-# FIX 4: Buat koneksi global
-conn = sqlite3.connect('users.db', check_same_thread=False)
-c = conn.cursor()
+st.markdown('<div class="header"><h2>UNIVERSITAS AIRLANGGA — Book Recommender (Nanda)</h2></div>', unsafe_allow_html=True)
+st.markdown('<div class="navbar">🏠 Home &nbsp; 📖 Recommender &nbsp; 📊 Clusters &nbsp; ℹ️ About</div>', unsafe_allow_html=True)
+st.write("")
 
-def create_usertable():
-    c.execute('CREATE TABLE IF NOT EXISTS users(username TEXT, password TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS history(username TEXT, query TEXT, method TEXT)') # Pindahkan ini ke sini
-    conn.commit()
+# ---------------------------
+# Sidebar: Login / Register
+# ---------------------------
+st.sidebar.title("Account")
+ensure_users_file()
+menu = st.sidebar.selectbox("Menu", ["Login","Register","Profile"])
 
-def add_userdata(username, password):
-    c.execute('INSERT INTO users(username, password) VALUES (?, ?)', (username, password))
-    conn.commit()
-
-def login_user(username, password):
-    c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
-    return c.fetchall()
-
-def make_hashes(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
-
-def check_hashes(password, hashed_text):
-    return make_hashes(password) == hashed_text
-
-create_usertable() # Jalankan sekali saat start
-
-# ======================================================
-# 4️⃣ LOGIN & REGISTER PAGE
-# ======================================================
-menu = ["Login", "Register"]
-choice = st.sidebar.selectbox("Menu", menu)
-
-if choice == "Register":
-    st.sidebar.subheader("🔐 Buat Akun Baru")
-    new_user = st.sidebar.text_input("Username")
-    new_password = st.sidebar.text_input("Password", type='password')
-    if st.sidebar.button("Daftar"):
-        add_userdata(new_user, make_hashes(new_password))
-        st.success("✅ Akun berhasil dibuat!")
-        st.info("Silakan login menggunakan akun yang baru dibuat.")
-
-elif choice == "Login":
-    st.sidebar.subheader("👤 Login")
-    username = st.sidebar.text_input("Username")
-    password = st.sidebar.text_input("Password", type='password')
-    if st.sidebar.button("Masuk"):
-        hashed_pswd = make_hashes(password)
-        result = login_user(username, hashed_pswd)
-        if result:
-            st.session_state["login"] = True
-            st.session_state["username"] = username
-            st.success(f"Selamat datang, {username}! 🎉")
+if menu == "Register":
+    st.sidebar.subheader("🔐 Create account")
+    new_user = st.sidebar.text_input("Username", key="reg_user")
+    new_pass = st.sidebar.text_input("Password", type="password", key="reg_pass")
+    if st.sidebar.button("Register"):
+        ok, msg = register_user(new_user, new_pass)
+        if ok:
+            st.sidebar.success(msg)
         else:
-            st.error("Username atau password salah!")
+            st.sidebar.error(msg)
 
-# ======================================================
-# 5️⃣ LOAD MODEL & DATA (HANYA SETELAH LOGIN)
-# ======================================================
-if "login" in st.session_state and st.session_state["login"]:
-    
-    @st.cache_resource
-    def load_models():
-        # FIX 1: Pastikan path "models/" (dengan 's') sudah benar
-        # FIX 2: Gunakan joblib.load()
-        try:
-            tfidf_vectorizer = joblib.load("model/tfidf_vectorizer.pkl")
-            kmeans_model = joblib.load("model/kmeans_model.pkl")
-            knn_model = joblib.load("model/knn_model.pkl")
-            embeddings = joblib.load("model/embeddings.pkl")
-            return tfidf_vectorizer, kmeans_model, knn_model, embeddings
-        except FileNotFoundError:
-            st.error("ERROR: File model tidak ditemukan. Pastikan folder 'models' ada di repositori Anda.")
-            return None, None, None, None
-        except Exception as e:
-            st.error(f"Gagal memuat model: {e}")
-            return None, None, None, None
+elif menu == "Login":
+    st.sidebar.subheader("🔑 Login")
+    in_user = st.sidebar.text_input("Username", key="login_user")
+    in_pass = st.sidebar.text_input("Password", type="password", key="login_pass")
+    if st.sidebar.button("Login"):
+        if authenticate_user(in_user, in_pass):
+            st.session_state['username'] = in_user
+            st.session_state['logged_in'] = True
+            st.sidebar.success(f"Welcome, {in_user}")
+        else:
+            st.sidebar.error("Invalid username/password")
 
-    tfidf_vectorizer, kmeans_model, knn_model, embeddings = load_models()
-
-    @st.cache_data
-    def load_books():
-        try:
-            return pd.read_csv("data - books.csv")
-        except FileNotFoundError:
-            st.error("File 'books.csv' tidak ditemukan.")
-            return pd.DataFrame()
-
-    df = load_books()
-
-    # FIX 3: Hitung TF-IDF Matrix SEKALI SAJA di sini
-    if not df.empty and tfidf_vectorizer:
-        try:
-            tfidf_matrix = tfidf_vectorizer.transform(df["title"].astype(str))
-        except Exception as e:
-            st.error(f"Gagal membuat TF-IDF Matrix: {e}")
-            tfidf_matrix = None
+elif menu == "Profile":
+    if 'logged_in' in st.session_state and st.session_state['logged_in']:
+        u = st.session_state['username']
+        st.sidebar.write(f"Logged in as **{u}**")
+        # show history
+        data = load_users()
+        history = data["users"].get(u, {}).get("history", [])
+        if history:
+            st.sidebar.write("Recent queries:")
+            for h in history[:8]:
+                t = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(h["time"]))
+                st.sidebar.write(f"- {t} — {h['query']} ({h['method']})")
+        if st.sidebar.button("Logout"):
+            st.session_state.clear()
+            st.experimental_rerun()
     else:
-        tfidf_matrix = None
+        st.sidebar.info("You are not logged in. Use Login tab.")
 
-    # Hanya jalankan sisa aplikasi jika semua berhasil dimuat
-    if not df.empty and tfidf_vectorizer and kmeans_model and knn_model and embeddings:
-    
-        # ======================================================
-        # 6️⃣ FITUR REKOMENDASI
-        # ======================================================
-        st.title("📚 Sistem Rekomendasi Buku Nanda")
-        st.markdown("Temukan buku terbaik yang cocok dengan selera Anda!")
+# ---------------------------
+# Main Tabs
+# ---------------------------
+tab = st.selectbox("", ["Home","Recommender","Clusters","Upload Data","About"])
 
-        judul_input = st.text_input("Masukkan Judul Buku", "Harry Potter")
-        metode = st.selectbox("Pilih Metode Rekomendasi", [
-            "TF-IDF + Cosine Similarity",
-            "Embedding",
-            "KNN + Embedding",
-            "K-Means Cluster"
-        ])
+# ------- Home -------
+if tab == "Home":
+    st.markdown('<div class="card"><h3>Welcome</h3><p>This portfolio app demonstrates TF-IDF and semantic recommendations for books. Login to get personalized recommendations.</p></div>', unsafe_allow_html=True)
+    if not books_df.empty:
+        st.write(f"Dataset: {len(books_df)} books")
+        st.dataframe(books_df[['title','authors','categories']].head(8))
+    else:
+        st.info("No dataset loaded. Go to Upload Data to upload books.csv.")
 
-        if st.button("🔍 Tampilkan Rekomendasi"):
-            if metode == "TF-IDF + Cosine Similarity":
-                # FIX 3: Gunakan tfidf_matrix yang sudah di-load
-                query_vec = tfidf_vectorizer.transform([judul_input])
-                similarity = cosine_similarity(query_vec, tfidf_matrix).flatten()
-                top_idx = similarity.argsort()[-5:][::-1]
-                hasil = df.iloc[top_idx][["title", "authors", "categories"]]
-                st.dataframe(hasil)
+# ------- Recommender -------
+elif tab == "Recommender":
+    st.header("🔎 Book Recommender")
+    if 'logged_in' not in st.session_state or not st.session_state.get('logged_in'):
+        st.warning("Please login to get personalized features. But you can still try recommendations (non-personal).")
+    col1, col2 = st.columns([3,1])
+    query = col1.text_input("Search book title (typo OK):", value="")
+    method = col2.selectbox("Method", ["TF-IDF Cosine","Embedding + KNN","Hybrid (TFIDF+Embedding)"])
+    top_k = st.slider("Top K", 3, 12, 6)
 
-            elif metode == "Embedding":
-                if judul_input in embeddings:
-                    from sklearn.metrics.pairwise import cosine_similarity
-                    # Asumsi 'embeddings' adalah DICTIONARY {judul: vektor}
-                    sim = cosine_similarity([embeddings[judul_input]], list(embeddings.values()))
-                    top_idx = np.argsort(sim[0])[-5:][::-1]
-                    hasil = pd.DataFrame({
-                        "title": [list(embeddings.keys())[i] for i in top_idx]
-                    })
-                    st.dataframe(hasil)
+    # fuzzy suggestion
+    if query and not books_df.empty:
+        cand, score = fuzzy_match(query, books_df['title_norm'].tolist())
+        if cand:
+            st.caption(f"Did you mean: **{cand}** (score {score})")
+
+    if st.button("Recommend"):
+        if books_df.empty:
+            st.error("Dataset not available.")
+        else:
+            # prepare TF-IDF matrix if tfidf available
+            tfidf_matrix = None
+            if tfidf is not None:
+                try:
+                    tfidf_matrix = tfidf.transform(books_df['text'].fillna('').tolist())
+                except Exception:
+                    try:
+                        tfidf_matrix = tfidf.transform(books_df['title'].astype(str).tolist())
+                    except Exception:
+                        tfidf_matrix = None
+            # TF-IDF Cosine
+            if method == "TF-IDF Cosine":
+                if tfidf is None or tfidf_matrix is None:
+                    st.error("TF-IDF model not available.")
                 else:
-                    st.warning("Judul tidak ditemukan di embeddings!")
+                    if cand:
+                        idx = books_df[books_df['title_norm']==cand].index[0]
+                        vec = tfidf_matrix[idx]
+                    else:
+                        vec = tfidf.transform([query])
+                    sims = cosine_similarity(vec, tfidf_matrix).flatten()
+                    top_idx = sims.argsort()[::-1][:top_k]
+                    st.subheader("Recommendations (TF-IDF)")
+                    for i in top_idx:
+                        st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
+                        st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=180))
+                        st.caption(f"Score: {sims[i]:.4f}")
+                        st.markdown("---")
+                    if 'username' in st.session_state:
+                        add_history(st.session_state['username'], query, "TF-IDF")
 
-            elif metode == "KNN + Embedding":
-                # FIX 3: Gunakan knn_model yang sudah dilatih (bukan dilatih ulang)
-                if judul_input in embeddings:
-                    distances, indices = knn_model.kneighbors([embeddings[judul_input]])
-                    hasil = pd.DataFrame({
-                        "title": [list(embeddings.keys())[i] for i in indices[0]],
-                        "distance": distances[0]
-                    })
-                    st.dataframe(hasil)
+            # Embedding + KNN
+            elif method == "Embedding + KNN":
+                if embeddings is None and not HAS_SBERT:
+                    st.error("Embeddings not available and sentence-transformers not installed.")
                 else:
-                    st.warning("Judul tidak ditemukan di embeddings!")
+                    try:
+                        # get embeddings array (if dict or array)
+                        if embeddings is None:
+                            s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                            emb_array = s_model.encode(books_df['text'].tolist(), convert_to_tensor=False)
+                            q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                        else:
+                            # embeddings might be dict mapping titles->vec OR numpy array aligned with DF
+                            if isinstance(embeddings, dict):
+                                titles = list(embeddings.keys())
+                                emb_array = np.array(list(embeddings.values()))
+                                # if query matches a title use that vector else encode using sbert if available
+                                if query in embeddings:
+                                    q_emb = np.array(embeddings[query]).reshape(1,-1)
+                                elif HAS_SBERT:
+                                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                    q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                                else:
+                                    st.error("Cannot encode query: sentence-transformers not available.")
+                                    q_emb = None
+                            else:
+                                emb_array = np.array(embeddings)
+                                if HAS_SBERT:
+                                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                    q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                                else:
+                                    st.error("Embeddings provided as array but sentence-transformers not available to encode query.")
+                                    q_emb = None
 
-            elif metode == "K-Means Cluster":
-                # FIX 3: Gunakan tfidf_matrix yang sudah di-load
-                clusters = kmeans_model.predict(tfidf_matrix)
-                df["cluster"] = clusters
-                if judul_input in df["title"].values:
-                    cluster_id = df[df["title"] == judul_input]["cluster"].values[0]
-                    hasil = df[df["cluster"] == cluster_id].head(5)
-                    st.dataframe(hasil)
+                        if q_emb is not None:
+                            knn = NearestNeighbors(metric="cosine", algorithm="brute")
+                            knn.fit(emb_array)
+                            dists, idxs = knn.kneighbors(q_emb, n_neighbors=top_k)
+                            st.subheader("Recommendations (Embedding + KNN)")
+                            for dist, idx in zip(dists.flatten(), idxs.flatten()):
+                                st.markdown(f"**{books_df.iloc[idx]['title']}** — {books_df.iloc[idx].get('authors','')}")
+                                st.caption(f"Similarity: {1.0 - dist:.4f}")
+                                st.write(shorten(str(books_df.iloc[idx].get('description',books_df.iloc[idx].get('text',''))), width=160))
+                                st.markdown("---")
+                            if 'username' in st.session_state:
+                                add_history(st.session_state['username'], query, "EMBEDDING_KNN")
+                    except Exception as e:
+                        st.error(f"Embedding KNN error: {e}")
+
+            # Hybrid
+            elif method == "Hybrid (TFIDF+Embedding)":
+                alpha = st.slider("Embedding weight (alpha)", 0.0, 1.0, 0.5)
+                if tfidf is None or (embeddings is None and not HAS_SBERT):
+                    st.error("Required models not available for Hybrid.")
                 else:
-                    st.warning("Judul tidak ditemukan di dataset!")
+                    # compute tfidf sim
+                    try:
+                        vec = tfidf.transform([query])
+                        tfidf_sim = cosine_similarity(vec, tfidf_matrix).flatten()
+                    except Exception:
+                        tfidf_sim = np.zeros(len(books_df))
+                    # compute emb sim
+                    try:
+                        if embeddings is None:
+                            s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                            emb_array = s_model.encode(books_df['text'].tolist(), convert_to_tensor=False)
+                            q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                            emb_sim = cosine_similarity(q_emb, emb_array).flatten()
+                        else:
+                            if isinstance(embeddings, dict):
+                                emb_array = np.array(list(embeddings.values()))
+                                if query in embeddings:
+                                    q_emb = np.array(embeddings[query]).reshape(1,-1)
+                                elif HAS_SBERT:
+                                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                    q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                                else:
+                                    q_emb = None
+                            else:
+                                emb_array = np.array(embeddings)
+                                if HAS_SBERT:
+                                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                                    q_emb = s_model.encode(query, convert_to_tensor=False).reshape(1,-1)
+                                else:
+                                    q_emb = None
+                            if q_emb is not None:
+                                emb_sim = cosine_similarity(q_emb, emb_array).flatten()
+                            else:
+                                emb_sim = np.zeros(len(books_df))
+                    except Exception:
+                        emb_sim = np.zeros(len(books_df))
 
-            # FIX 4: Simpan ke riwayat user menggunakan koneksi global
-            try:
-                c.execute('INSERT INTO history(username, query, method) VALUES (?, ?, ?)',
-                          (st.session_state["username"], judul_input, metode))
-                conn.commit()
-            except Exception as e:
-                st.warning(f"Gagal menyimpan riwayat: {e}")
+                    # normalize and combine
+                    tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
+                    eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
+                    combined = alpha * eb_norm + (1 - alpha) * tf_norm
+                    top_idx = combined.argsort()[::-1][:top_k]
+                    st.subheader("Recommendations (Hybrid)")
+                    for i in top_idx:
+                        st.markdown(f"**{books_df.iloc[i]['title']}** — {books_df.iloc[i].get('authors','')}")
+                        st.caption(f"Score: {combined[i]:.4f}")
+                        st.write(shorten(str(books_df.iloc[i].get('description',books_df.iloc[i].get('text',''))), width=160))
+                        st.markdown("---")
+                    if 'username' in st.session_state:
+                        add_history(st.session_state['username'], query, "HYBRID")
 
-        # ======================================================
-        # 7️⃣ HISTORI PENCARIAN
-        # ======================================================
-        with st.expander("🕓 Lihat Riwayat Pencarian"):
-            # FIX 4: Gunakan koneksi global
-            c.execute("SELECT query, method FROM history WHERE username=?", (st.session_state["username"],))
-            data = c.fetchall()
-            if data:
-                st.table(pd.DataFrame(data, columns=["Judul", "Metode"]))
+# ------- Clusters -------
+elif tab == "Clusters":
+    st.header("📂 K-Means Clustering")
+    if books_df.empty:
+        st.warning("Dataset not available.")
+    else:
+        k = st.slider("Number of clusters (k)", 2, 20, 6)
+        if st.button("Build/Rebuild KMeans"):
+            if tfidf is None:
+                st.error("TF-IDF model required to build clusters.")
             else:
-                st.info("Belum ada riwayat pencarian.")
+                try:
+                    X = tfidf.transform(books_df['text'].fillna('').tolist())
+                    km = KMeans(n_clusters=k, random_state=42)
+                    labels = km.fit_predict(X)
+                    books_df['cluster'] = labels
+                    os.makedirs(MODELS_DIR, exist_ok=True)
+                    joblib.dump(km, os.path.join(MODELS_DIR, "kmeans_model.pkl"))
+                    st.success("KMeans built and saved to models/kmeans_model.pkl")
+                except Exception as e:
+                    st.error(f"KMeans error: {e}")
+        if 'cluster' in books_df.columns:
+            st.write(books_df.groupby('cluster').size().reset_index(name='count'))
+            sel = st.selectbox("Pick cluster", sorted(books_df['cluster'].unique()))
+            st.dataframe(books_df[books_df['cluster']==sel][['title','authors','categories']].head(50))
 
-        # ======================================================
-        # 8️⃣ VISUALISASI CLUSTER
-        # ======================================================
-        with st.expander("📊 Visualisasi Cluster (K-Means)"):
-            # FIX 3: Gunakan tfidf_matrix yang sudah di-load
-            df["cluster"] = kmeans_model.predict(tfidf_matrix)
-            cluster_counts = df["cluster"].value_counts().reset_index()
-            cluster_counts.columns = ["Cluster", "Jumlah Buku"]
-            fig = px.bar(cluster_counts, x="Cluster", y="Jumlah Buku",
-                         color="Cluster", title="Distribusi Buku per Cluster")
-            st.plotly_chart(fig, use_container_width=True)
+# ------- Upload Data -------
+elif tab == "Upload Data":
+    st.header("📁 Upload dataset (books.csv)")
+    uploaded = st.file_uploader("Upload CSV containing columns title, authors, categories, description (optional)", type=['csv'])
+    if uploaded is not None:
+        try:
+            df_new = pd.read_csv(uploaded)
+            df_new.to_csv(BOOKS_CSV, index=False)
+            st.success("books.csv uploaded. Reload the app to pickup new dataset.")
+        except Exception as e:
+            st.error(f"Upload failed: {e}")
 
-    # ======================================================
-    # 9️⃣ LOGOUT
-    # ======================================================
-    if st.sidebar.button("Logout"):
-        st.session_state.clear()
-        st.rerun() # FIX 5: Ganti ke st.rerun()
+# ------- About -------
+elif tab == "About":
+    st.header("About")
+    st.write("Portfolio app by Nanda. Shows TF-IDF, embeddings, KNN and KMeans based book recommendation.")
+    st.write("Model files loaded from /models. If you want embeddings, precompute using SentenceTransformer and save as models/embeddings.pkl (aligned with books.csv rows).")
+    st.write("For production: secure credentials, use remote DB, and do not commit private datasets to GitHub.")
 
-
-
-
+# Footer
+st.markdown("---")
+st.caption("© Nanda — Book Recommender Portfolio. Use responsibly.")
