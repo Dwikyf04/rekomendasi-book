@@ -76,7 +76,7 @@ def load_models():
         # Model yang Anda sebutkan:
         tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
         kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
-        books_df = pickle.load(os.path.join(models_path,"model/books_df.pkl"))
+        books_df = pickle.load(os.path.join(models_path,"model/df_books.pkl"))
         knn_model = joblib.load(os.path.join(models_path, "knn_model.pkl")) # Model KNN dari SBERT
 
         # Data yang DIBUTUHKAN oleh knn_model
@@ -877,6 +877,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
