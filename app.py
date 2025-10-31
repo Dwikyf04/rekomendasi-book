@@ -65,7 +65,7 @@ def load_models():
     """
     # -------------------------------------------------------------------
     # UBAH NAMA FOLDER DI BAWAH INI
-    models_path = "model/ 
+    models_path = "model/" 
     # -------------------------------------------------------------------
     
     if not os.path.exists(models_path):
@@ -434,4 +434,5 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
