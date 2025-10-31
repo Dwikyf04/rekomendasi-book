@@ -24,7 +24,7 @@ st.write("Sistem rekomendasi buku berbasis **TF-IDF**, **Cosine Similarity**, da
 # =====================================
 @st.cache_data
 def load_data():
-    df = pd.read_csv("data-books.csv")
+    df = pd.read_csv("books.csv")
     df = df.dropna(subset=["title"])
     df = df.reset_index(drop=True)
     return df
@@ -115,5 +115,6 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
