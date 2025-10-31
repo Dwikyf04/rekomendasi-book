@@ -1,25 +1,24 @@
+# streamlit_book_recommender_app.py
+# Portofolio App: Book Recommendation System
+# Built for Nanda — combines TF-IDF, fuzzy search, KNN (embedding), and K-Means clustering
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 import os
-import re 
-import difflib
-from thefuzz import process
+import re
+import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
-from sentence_transformers import SentenceTransformer, util
 from wordcloud import WordCloud
-import matplotlib.pyplot as plt
+from sentence_transformers import SentenceTransformer, util
+from thefuzz import process
+
 
 # Optional: semantic embeddings (SentenceTransformers). If not available the app still runs with TF-IDF.
-try:
-    HAS_SBERT = True
-except Exception:
-    HAS_SBERT = False
 
 
 # ----------------------
@@ -93,8 +92,8 @@ else:
     tfidf_vectorizer, tfidf_matrix = None, None
 
 # Try to load optional precomputed artifacts (model files) if present
-KMEANS_PATH = 'model/kmeans.pkl'
-SBERT_PATH = 'model/book_embeddings.pkl'  # optional
+KMEANS_PATH = 'models/kmeans.pkl'
+SBERT_PATH = 'models/book_embeddings.pkl'  # optional
 
 kmeans_model = None
 if os.path.exists(KMEANS_PATH):
@@ -281,3 +280,115 @@ st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, word
 
 
 
+# Additional deployment files
+
+Below are suggested additional files to include in your repo for deployment. Add them as separate files in the project root.
+
+---
+
+## `requirements.txt`
+```
+streamlit==1.28.0
+pandas
+numpy
+scikit-learn
+matplotlib
+wordcloud
+joblib
+thefuzz
+python-Levenshtein
+sentence-transformers
+plotly
+streamlit-folium
+gspread
+oauth2client
+streamlit-option-menu
+requests
+```
+
+> Notes:
+- sentence-transformers is optional but required for embedding/semantic features. It increases deployment time and adds heavy dependencies. On Streamlit Cloud, it may be large — consider using a smaller model (paraphrase-multilingual-MiniLM-L12-v2) or precompute and store embeddings in models/book_embeddings.pkl to avoid installing the heavy library on deploy.
+- python-Levenshtein speeds up thefuzz fuzzy matching. If installation issues arise, remove it and leave thefuzz only.
+
+---
+
+## `.gitignore`
+```
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+models/
+*.pkl
+*.pt
+.DS_Store
+books.csv
+```
+
+> Note: books.csv is ignored in this .gitignore to avoid accidentally pushing large or private datasets. If you want the dataset in the repo, remove books.csv from .gitignore.
+
+---
+
+## `README.md` (template)
+```
+# Book Recommender — Portfolio App (Nanda)
+
+This repository contains a Streamlit portfolio application for a Book Recommendation System. It supports:
+- TF-IDF based recommendations with fuzzy title matching
+- Optional semantic recommendations using SentenceTransformer embeddings (if sentence-transformers installed)
+- K-Means clustering and interactive inspection
+- File upload to replace dataset inside the app
+
+## Files
+- streamlit_book_recommender_app.py — main Streamlit app
+- books.csv — dataset (place in repo root or upload via the app)
+- models/kmeans.pkl — optional persisted KMeans model
+- models/book_embeddings.pkl — optional persisted embeddings
+- requirements.txt — Python dependencies
+
+## How to run locally
+1. Create a virtual environment and install requirements:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # mac/linux
+pip install -r requirements.txt
+```
+
+2. Place books.csv in the project root (or use Upload Data tab in the app).
+3. Run the app:
+
+```bash
+streamlit run streamlit_book_recommender_app.py
+```
+
+## Deploy to Streamlit Cloud
+1. Push the project to GitHub.
+2. Go to https://share.streamlit.io and connect your GitHub account.
+3. Create a new app and point to your repository and streamlit_book_recommender_app.py.
+4. If you included heavy dependencies like sentence-transformers, consider precomputing embeddings locally and saving models/book_embeddings.pkl to reduce runtime install time.
+
+## Notes
+- If you store credentials (Google Sheets service account), add them to Streamlit Secrets rather than hardcoding in the repo.
+```
+
+---
+
+## Deployment instructions (concise)
+1. Prepare repo: Add the app file streamlit_book_recommender_app.py, requirements.txt, and optionally README.md and .gitignore.
+2. Push to GitHub: git init, git add ., git commit -m "initial", git branch -M main, git remote add origin <repo-url>, git push -u origin main.
+3. Streamlit Cloud: Sign in, create new app, select repo + branch + file. Click Deploy.
+4. Common issues:
+   - ModuleNotFoundError: add missing package to requirements.txt and push.
+   - pandas.errors.EmptyDataError: ensure books.csv is present or use remote URL/Upload feature.
+   - Large sentence-transformers installs: precompute embeddings and commit models/book_embeddings.pkl (recommended).
+
+---
+
+If you want, I can now:
+1. Create the requirements.txt and README.md as separate canvas files for you to copy,
+2. Provide the exact git commands and a final checklist to deploy, or
+3. Help you precompute embeddings locally and save models/book_embeddings.pkl with code to do so.
+
+Choose 1, 2, or 3 and I will continue.
