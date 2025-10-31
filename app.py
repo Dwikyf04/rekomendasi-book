@@ -140,7 +140,7 @@ if "login" in st.session_state and st.session_state["login"]:
 
     # Hanya jalankan sisa aplikasi jika semua berhasil dimuat
     # KODE PERBAIKAN
-    if not df.empty and tfidf_vectorizer and kmeans_model and knn_model and embeddings:
+        if not df.empty and tfidf_vectorizer and kmeans_model and knn_model and embeddings:
     
         # ======================================================
         # 6️⃣ FITUR REKOMENDASI
@@ -239,5 +239,6 @@ if "login" in st.session_state and st.session_state["login"]:
     if st.sidebar.button("Logout"):
         st.session_state.clear()
         st.rerun() # FIX 5: Ganti ke st.rerun()
+
 
 
