@@ -27,12 +27,12 @@ def load_model():
     Memuat model TF-IDF, SVM, dan K-Means dari file .pkl.
     """
     try:
-        tfidf = joblib.load("Model/tfidf_vectorizer.pkl")
-        kmeans_model = joblib.load("Model/kmeans_model.pkl")
-        knn_model = joblib.load("Model/knn_model.pkl")
+        tfidf = joblib.load("model/tfidf_vectorizer.pkl")
+        kmeans_model = joblib.load("model/kmeans_model.pkl")
+        knn_model = joblib.load("model/knn_model.pkl")
         return tfidf, kmeans_model, knn_model
     except FileNotFoundError:
-        st.error("File model (.pkl) tidak ditemukan di folder /Models.")
+        st.error("File model (.pkl) tidak ditemukan di folder /model.")
         return None, None, None
     except Exception as e:
         st.error(f"Gagal memuat model: {e}")
@@ -150,6 +150,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
