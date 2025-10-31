@@ -83,10 +83,10 @@ def load_models():
     """
     models_path = "model/" # Asumsi model ada di root
     try:
-        tfidf_vec = joblib.load(os.path.join(models_path, "model/tfidf_vectorizer.pkl"))
-        kmeans_model = joblib.load(os.path.join(models_path, "model/kmeans_model.pkl"))
-        knn_model = joblib.load(os.path.join(models_path, "model/knn_model.pkl"))
-        embeddings = joblib.load(os.path.join(models_path, "model/embeddings.pkl"))
+        tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
+        kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
+        knn_model = joblib.load(os.path.join(models_path, "knn_model.pkl"))
+        embeddings = joblib.load(os.path.join(models_path, "/embeddings.pkl"))
         
         sbert_model = None
         if HAS_SBERT:
@@ -725,6 +725,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
