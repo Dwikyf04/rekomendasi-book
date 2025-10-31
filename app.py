@@ -1,6 +1,5 @@
-# [File: app_buku.py]
+# [File: app.py]
 # Portofolio App: Book Recommendation System (Versi Multi-Page Lanjutan)
-# Menggabungkan fitur dari app buku sebelumnya dengan struktur app perpustakaan
 
 import streamlit as st
 import pandas as pd
@@ -20,6 +19,7 @@ try:
     HAS_SBERT = True
 except ImportError:
     HAS_SBERT = False
+    st.warning("Library 'sentence-transformers' tidak ditemukan. Mode Embedding/Hybrid akan dinonaktifkan.")
 
 try:
     from wordcloud import WordCloud
@@ -40,10 +40,14 @@ except ImportError:
     HAS_OPTION_MENU = False
     st.error("Butuh 'streamlit_option_menu'. Install: pip install streamlit-option-menu")
 
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.cluster import KMeans
-from sklearn.neighbors import NearestNeighbors
+# Pastikan scikit-learn terinstal
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.cluster import KMeans
+    from sklearn.neighbors import NearestNeighbors
+except ImportError:
+    st.error("Scikit-learn (sklearn) tidak ditemukan. Install: pip install scikit-learn")
 
 # ----------------------
 # Konfigurasi Halaman
@@ -57,31 +61,31 @@ st.set_page_config(page_title="Rekomendasi Buku", layout="wide")
 @st.cache_resource
 def load_models():
     """
-    Memuat model TF-IDF, K-Means, dan TF-IDF Matrix dari file .pkl.
-    Ini adalah pola yang jauh lebih baik untuk deployment.
+    Memuat semua model yang diperlukan dari folder /Models.
     """
-    models_path = "model/" # Pastikan Anda punya folder 'Models'
+    models_path = "model/" # Pastikan folder ini ada
     try:
-        tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
+        # Model yang Anda sebutkan:
+        tfidf_vec = joblib.load(os.path.join(models_path, "tfidf.pkl"))
+        kmeans_model = joblib.load(os.path.join(models_path, "kmean.pkl"))
+        knn_model = joblib.load(os.path.join(models_path, "knn.pkl")) # Model KNN dari SBERT
+
+        # Model/Data TAMBAHAN yang DIBUTUHKAN oleh kode:
+        # 1. Matriks TF-IDF (untuk cosine similarity)
         tfidf_mat = joblib.load(os.path.join(models_path, "tfidf_matrix.pkl"))
-        kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
+        # 2. Embeddings SBERT (data yang dilatih oleh knn.pkl)
+        sbert_embeddings = joblib.load(os.path.join(models_path, "embeddings.pkl"))
         
-        # SBERT embeddings (opsional, jika Anda menyimpannya)
-        sbert_path = os.path.join(models_path, "sbert_embeddings.pkl")
-        if os.path.exists(sbert_path):
-            sbert_embeddings = joblib.load(sbert_path)
-        else:
-            sbert_embeddings = None
-            
-        return tfidf_vec, tfidf_mat, kmeans_model, sbert_embeddings
-        
+        st.success("Semua model (5 file) berhasil dimuat.")
+        return tfidf_vec, tfidf_mat, kmeans_model, knn_model, sbert_embeddings
+    
     except FileNotFoundError as e:
-        st.error(f"File model tidak ditemukan: {e}. Pastikan file .pkl ada di folder 'Models/'.")
-        st.info("Aplikasi akan lanjut tanpa model (fungsionalitas terbatas).")
-        return None, None, None, None
+        st.error(f"File model tidak ditemukan: {e}.")
+        st.warning("Pastikan 5 file berikut ada di folder 'Models/': tfidf.pkl, kmean.pkl, knn.pkl, tfidf_matrix.pkl, sbert_embeddings.pkl")
+        return None, None, None, None, None
     except Exception as e:
         st.error(f"Gagal memuat model: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
 @st.cache_data
 def load_book_data(file_path="book.csv"):
@@ -93,7 +97,7 @@ def load_book_data(file_path="book.csv"):
         df = df.drop_duplicates(subset=[c for c in ['isbn13','title'] if c in df.columns], keep='first')
         df['title'] = df['title'].astype(str)
         
-        # Buat kolom 'text' gabungan (sama seperti kode Anda)
+        # Buat kolom 'text' gabungan
         cols = []
         for c in ['title','subtitle','authors','categories','description']:
             if c in df.columns:
@@ -113,23 +117,33 @@ def load_book_data(file_path="book.csv"):
         st.error(f"Terjadi kesalahan saat memuat data CSV (Buku): {e}")
         return pd.DataFrame()
 
-# --- Fungsi Bantuan (dari kode Anda) ---
+# --- Fungsi Bantuan ---
 def fuzzy_match(query, choices, limit=1):
     if HAS_THEFUZZ and process is not None:
         res = process.extractOne(query, choices)
         if res:
             return res[0], res[1]
-        return None, 0
-    else:
-        # Fallback jika thefuzz tidak ada
-        matches = difflib.get_close_matches(query, choices, n=limit)
-        return (matches[0], 90) if matches else (None, 0)
-        
+    # Fallback jika thefuzz tidak ada
+    matches = difflib.get_close_matches(query, choices, n=limit)
+    return (matches[0], 90) if matches else (None, 0)
+
+# @st.cache_resource
+# Fungsi ini tidak perlu di-cache jika hanya me-return model SBERT
+def get_sbert_model(model_name='paraphrase-multilingual-MiniLM-L12-v2'):
+    if HAS_SBERT:
+        try:
+            model = SentenceTransformer(model_name)
+            return model
+        except Exception as e:
+            st.error(f"Gagal memuat model SBERT: {e}")
+            return None
+    return None
+
 # ----------------------
 # 2. Memuat Semua Data & Model
 # ----------------------
 df_books = load_book_data("book.csv") # Ganti 'book.csv' jika nama file Anda berbeda
-tfidf_vectorizer, tfidf_matrix, kmeans_model, sbert_embeddings = load_models()
+tfidf_vectorizer, tfidf_matrix, kmeans_model, knn_model, sbert_embeddings = load_models()
 
 # ----------------------
 # 3. Navigasi Sidebar
@@ -172,9 +186,7 @@ if selected_page == "Beranda":
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Judul Buku", f"{df_books['title'].nunique()} Judul")
         
-        # Coba hitung penulis unik
         try:
-            # Asumsi 'authors' adalah string, mungkin perlu di-split atau eval
             if 'authors' in df_books.columns:
                 all_authors = df_books['authors'].dropna().astype(str).unique()
                 col2.metric("Total Penulis", f"{len(all_authors)} Penulis")
@@ -204,8 +216,6 @@ if selected_page == "Beranda":
         st.subheader("Top 10 Kategori Buku")
         if not df_books.empty and 'categories' in df_books.columns:
             try:
-                # Membersihkan kategori (seringkali formatnya ['Fiction', 'Science'])
-                # Ini hanya contoh sederhana; mungkin perlu pembersihan lebih lanjut
                 top_categories = df_books['categories'].dropna().astype(str).value_counts().nlargest(10)
                 st.bar_chart(top_categories)
             except Exception as e:
@@ -239,7 +249,7 @@ if selected_page == "Beranda":
             st.caption("Tidak ada teks untuk WordCloud.")
 
 # ===============================================
-# Halaman 2: REKOMENDASI (Kode Lama Anda)
+# Halaman 2: REKOMENDASI (Pencarian Judul)
 # ===============================================
 elif selected_page == "Rekomendasi":
     st.header("🔎 Rekomendasi Buku (Pencarian Judul)")
@@ -252,12 +262,9 @@ elif selected_page == "Rekomendasi":
     else:
         # --- Opsi Metode ---
         method_options = ["TF-IDF Cosine"]
-        if HAS_SBERT and sbert_embeddings is not None:
+        if HAS_SBERT and knn_model is not None and sbert_embeddings is not None:
             method_options.extend(["Embedding + KNN (Semantic)"])
-        elif HAS_SBERT and sbert_embeddings is None:
-            st.info("Mode Embedding tersedia, namun 'sbert_embeddings.pkl' tidak ditemukan. Embeddings akan dibuat saat runtime (mungkin lambat).")
-            method_options.extend(["Embedding + KNN (Semantic)"])
-
+        
         cols = st.columns([3,1])
         query = cols[0].text_input("Cari judul buku (typo OK):", value="harry pottr and the chamber of secrets")
         method = cols[1].selectbox("Metode Rekomendasi", method_options)
@@ -274,10 +281,12 @@ elif selected_page == "Rekomendasi":
                 st.warning('Tidak ada judul yang cocok. Coba query pencarian lain.')
             else:
                 try:
+                    # Dapatkan index dari judul yang di-match
+                    idx_query = df_books[df_books['title'] == matched_title].index[0]
+                    
                     # --- Logika TF-IDF ---
                     if method == 'TF-IDF Cosine':
-                        idx = df_books[df_books['title'] == matched_title].index[0]
-                        sim = cosine_similarity(tfidf_matrix[idx], tfidf_matrix).flatten()
+                        sim = cosine_similarity(tfidf_matrix[idx_query], tfidf_matrix).flatten()
                         top_idx = sim.argsort()[::-1][1:top_k+1]
                         res = df_books.iloc[top_idx][['title','authors','categories']].copy()
                         res['score'] = sim[top_idx]
@@ -287,28 +296,21 @@ elif selected_page == "Rekomendasi":
                     # --- Logika SBERT / Embedding ---
                     elif method == 'Embedding + KNN (Semantic)' and HAS_SBERT:
                         
-                        # Jika embeddings.pkl tidak ada, build saat runtime
-                        current_embeddings = sbert_embeddings
-                        if current_embeddings is None:
-                            with st.spinner('Membangun SBERT embeddings (pertama kali)...'):
-                                s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                                current_embeddings = s_model.encode(df_books['text'].tolist(), convert_to_tensor=False)
-                        
-                        # Build KNN
-                        knn = NearestNeighbors(metric='cosine', algorithm='brute')
-                        knn.fit(current_embeddings)
-                        
-                        # Dapatkan index judul yang di-match
-                        idx_query = df_books[df_books['title'] == matched_title].index[0]
-                        q_emb = current_embeddings[idx_query].reshape(1,-1)
-                        
-                        dist, idxs = knn.kneighbors(q_emb, n_neighbors=top_k+1)
-                        idxs = idxs.flatten()[1:top_k+1] # Skip item pertama (dirinya sendiri)
-                        
-                        res = df_books.iloc[idxs][['title','authors','categories']].copy()
-                        res['distance'] = dist.flatten()[1:top_k+1]
-                        st.subheader("Hasil Rekomendasi (Semantic):")
-                        st.dataframe(res.reset_index(drop=True), use_container_width=True)
+                        if knn_model is None or sbert_embeddings is None:
+                            st.error("Model KNN atau SBERT Embeddings tidak dimuat.")
+                        else:
+                            # Dapatkan embedding dari query (berdasarkan index judul yang di-match)
+                            q_emb = sbert_embeddings[idx_query].reshape(1,-1)
+                            
+                            # Gunakan knn.pkl yang sudah di-load
+                            dist, idxs = knn_model.kneighbors(q_emb, n_neighbors=top_k+1)
+                            
+                            idxs = idxs.flatten()[1:top_k+1] # Skip item pertama (dirinya sendiri)
+                            
+                            res = df_books.iloc[idxs][['title','authors','categories']].copy()
+                            res['distance'] = dist.flatten()[1:top_k+1]
+                            st.subheader("Hasil Rekomendasi (Semantic):")
+                            st.dataframe(res.reset_index(drop=True), use_container_width=True)
                         
                 except IndexError:
                     st.error("Gagal menemukan index untuk judul yang cocok. Coba refresh.")
@@ -316,7 +318,7 @@ elif selected_page == "Rekomendasi":
                     st.error(f"Terjadi kesalahan: {e}")
 
 # ===============================================
-# Halaman 3: ANALISIS TEKS (BARU)
+# Halaman 3: ANALISIS TEKS (Pencarian Deskripsi)
 # ===============================================
 elif selected_page == "Analisis Teks":
     st.markdown("""
@@ -333,7 +335,7 @@ elif selected_page == "Analisis Teks":
         1: "Teknis & Sains",
         2: "Self-Help & Bisnis",
         3: "Biografi & Sejarah"
-        # ... sesuaikan dengan jumlah K Anda
+        # ... sesuaikan dengan jumlah K (kluster) Anda
     }
 
     if tfidf_vectorizer is None or kmeans_model is None or tfidf_matrix is None:
@@ -381,7 +383,6 @@ elif selected_page == "Analisis Teks":
             else:
                 st.warning("Masukkan deskripsi buku yang Anda cari terlebih dahulu!")
 
-
 # ===============================================
 # Halaman 4: ABOUT
 # ===============================================
@@ -399,32 +400,29 @@ elif selected_page == "About":
     Aplikasi ini adalah portofolio yang mendemonstrasikan beberapa teknik *Machine Learning* untuk sistem rekomendasi:
     
     1.  **Pencarian Judul (Tab Rekomendasi)**
-        * **Fuzzy Search:** Menggunakan `thefuzz` untuk menemukan judul buku yang paling mirip dengan input pengguna, mentolerir salah ketik.
-        * **Rekomendasi TF-IDF:** Menggunakan `Cosine Similarity` pada matriks `TfidfVectorizer` yang telah dilatih pada gabungan teks (judul, deskripsi, kategori).
-        * **Rekomendasi Semantic (Opsional):** Menggunakan `SentenceTransformer` (SBERT) untuk membuat *embeddings* (vektor makna) dari teks. Rekomendasi dicari menggunakan `NearestNeighbors` (KNN) pada ruang vektor tersebut.
+        * **Fuzzy Search:** Menggunakan `thefuzz` untuk menemukan judul buku yang paling mirip dengan input pengguna.
+        * **Rekomendasi TF-IDF:** Menggunakan `Cosine Similarity` pada matriks `tfidf_matrix.pkl` yang telah dilatih.
+        * **Rekomendasi Semantic:** Menggunakan model `knn.pkl` (Nearest Neighbors) yang telah dilatih pada data `sbert_embeddings.pkl` untuk menemukan item dengan "makna" terdekat.
 
     2.  **Analisis Teks (Tab Analisis Teks)**
-        * **Clustering Topik (Unsupervised):** Model `K-Means` digunakan untuk mengelompokkan semua buku ke dalam beberapa topik utama (misal: Fiksi, Teknis, dll). Input pengguna diklasifikasikan ke dalam cluster terdekat.
-        * **Content-Based Filtering:** Vektor TF-IDF dari *input teks pengguna* dicocokkan dengan `Cosine Similarity` terhadap *seluruh* matriks TF-IDF buku untuk menemukan item yang paling relevan.
+        * **Clustering Topik:** Model `kmean.pkl` (K-Means) digunakan untuk mengelompokkan buku ke dalam topik utama.
+        * **Content-Based Filtering:** Vektor TF-IDF dari *input teks pengguna* dicocokkan dengan `Cosine Similarity` terhadap *seluruh* `tfidf_matrix.pkl` buku.
 
-    3.  **Dashboard (Tab Beranda)**
-        * Menampilkan statistik deskriptif dari dataset menggunakan `st.metric` dan `st.bar_chart`.
-        * `WordCloud` digunakan untuk visualisasi kata-kata yang paling sering muncul dalam data teks.
+    3.  **Deployment**
+        * Seluruh model (`tfidf.pkl`, `kmean.pkl`, `knn.pkl`) dan data matriks (`tfidf_matrix.pkl`, `sbert_embeddings.pkl`) dimuat ke memori menggunakan `@st.cache_resource` untuk performa tinggi.
     
     4.  **Feedback Pengguna**
-        * Menggunakan `gspread` dan `st.secrets` untuk terhubung ke Google Sheets API dan menyimpan feedback secara aman.
+        * Menggunakan `gspread` dan `st.secrets` untuk terhubung ke Google Sheets API.
     
     ---
     *Dibuat oleh Nanda*
     """)
 
-
 # ===============================================
-# Halaman 5: FEEDBACK (Diambil dari kode perpustakaan Anda)
+# Halaman 5: FEEDBACK
 # ===============================================
 elif selected_page == "Feedback":
 
-    # === HEADER ===
     st.markdown("""
         <div style='text-align:center; padding: 15px;'>
             <h2>Formulir Feedback Pengguna</h2>
@@ -435,13 +433,12 @@ elif selected_page == "Feedback":
 
     # === KONEKSI KE GOOGLE SHEETS — MENGGUNAKAN STREAMLIT SECRETS ===
     SCOPE = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
+        "https.www.googleapis.com/auth/spreadsheets",
+        "https.www.googleapis.com/auth/drive"
     ]
 
     sheet = None # Inisialisasi
     try:
-        # Cek apakah secrets 'gcp_service_account' ada
         if "gcp_service_account" in st.secrets:
             creds_dict = st.secrets["gcp_service_account"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
@@ -455,15 +452,12 @@ elif selected_page == "Feedback":
         st.error(f"⚠️ Tidak dapat terhubung ke Google Sheets: {e}")
         st.info("Pastikan Anda telah membagikan Google Sheet Anda dengan email 'client_email' di file secrets.")
 
-    # === FORM INPUT FEEDBACK ===
     with st.form("feedback_form"):
         user_name = st.text_input("Nama (opsional)")
         user_rating = st.slider("Seberapa puas Anda dengan aplikasi ini?", 1, 5, 5)
         user_feedback = st.text_area("Kritik / Saran Anda ✍️", placeholder="Aplikasi ini sangat membantu, tapi...")
-
         submitted = st.form_submit_button("Kirim Feedback ✅")
 
-    # === SIMPAN FEEDBACK ===
     if submitted:
         if not user_feedback.strip():
             st.warning("Mohon isi kritik atau saran terlebih dahulu.")
@@ -481,4 +475,3 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
-
