@@ -157,7 +157,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="header"><h2>Book Recommender (Nanda)</h2></div>', unsafe_allow_html=True)
-st.markdown('<div class="navbar">🏠 Home &nbsp; 📖 Recommender &nbsp; 📊 Clusters &nbsp; ℹ️ About</div>', unsafe_allow_html=True)
+st.markdown('<div class="navbar">🏠 "Home"; 📖 Recommender &nbsp; 📊 Clusters &nbsp; ℹ️ About</div>', unsafe_allow_html=True)
 st.write("")
 
 # ---------------------------
@@ -423,6 +423,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
