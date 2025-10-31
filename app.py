@@ -75,7 +75,7 @@ def load_models():
     try:
         # Model yang Anda sebutkan:
         tfidf_vec = joblib.load(os.path.join(models_path, "tfidf_vectorizer.pkl"))
-        kmeans_model = joblib.load(os.path.join(models_path, "kmean_model.pkl"))
+        kmeans_model = joblib.load(os.path.join(models_path, "kmeans_model.pkl"))
         knn_model = joblib.load(os.path.join(models_path, "knn_model.pkl")) # Model KNN dari SBERT
 
         # Data yang DIBUTUHKAN oleh knn_model
@@ -87,7 +87,7 @@ def load_models():
     
     except FileNotFoundError as e:
         st.error(f"File model tidak ditemukan: {e}.")
-        st.warning(f"Pastikan 4 file berikut ada di folder '{models_path}': tfidf.pkl, kmean.pkl, knn.pkl, sbert_embeddings.pkl")
+        st.warning(f"Pastikan 4 file berikut ada di folder '{models_path}': tfidf.pkl, kmeans.pkl, knn.pkl, sbert_embeddings.pkl")
         return None, None, None, None
     except Exception as e:
         st.error(f"Gagal memuat model: {e}")
@@ -434,5 +434,6 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
