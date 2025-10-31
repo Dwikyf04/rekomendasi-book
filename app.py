@@ -27,7 +27,7 @@ except Exception:
 # ---------------------------
 st.set_page_config(page_title="Book Recommender — Nanda", page_icon="📚", layout="wide")
 ROOT = os.getcwd()
-MODELS_DIR = os.path.join(ROOT, "model/")
+MODELS_DIR = os.path.join(ROOT, "models")
 USERS_FILE = os.path.join(ROOT, "users.json")
 BOOKS_CSV = os.path.join(ROOT, "data - books.csv")
 
@@ -95,7 +95,7 @@ def load_models():
             st.sidebar.warning(f"Missing: {os.path.basename(path)}")
             return None
 
-    tfidf = safe_load(os.path.join(MODELS_DIR, "tfidf_vectorizer.pkl"))
+    tfidf = safe_load(os.path.join(MODELS_DIR, "model/tfidf_vectorizer.pkl"))
     kmeans = safe_load(os.path.join(MODELS_DIR, "kmeans_model.pkl"))
     knn = safe_load(os.path.join(MODELS_DIR, "knn_model.pkl"))
     embeddings = safe_load(os.path.join(MODELS_DIR, "embeddings.pkl"))
@@ -424,6 +424,7 @@ elif tab == "About":
 # Footer
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Use responsibly.")
+
 
 
 
