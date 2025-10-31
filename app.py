@@ -85,7 +85,7 @@ def fuzzy_match(query, choices, limit=1):
 # ----------------------
 # Load data & models
 # ----------------------
-df = load_books('book.csv')
+df = load_books("book.csv")
 if not df.empty:
     tfidf_vectorizer, tfidf_matrix = build_tfidf(df)
 else:
@@ -277,6 +277,7 @@ elif page == 'About':
 # ----------------------
 st.markdown('---')
 st.caption('Requirements example: pandas, scikit-learn, streamlit, thefuzz, wordcloud, sentence-transformers (optional).')
+
 
 
 
