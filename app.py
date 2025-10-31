@@ -279,14 +279,14 @@ else:
 
         if st.button("Recommend"):
             with st.spinner("Sedang mencari rekomendasi terbaik... ⏳"):
-            if books_df.empty:
-                st.error("Dataset tidak tersedia.")
-            else:
-                tfidf_matrix = None
-                try:
-                    tfidf_matrix = tfidf.transform(books_df['text'].fillna('').tolist())
-                except Exception:
-                    st.error("Gagal membuat TF-IDF Matrix dari kolom 'text'.")
+                if books_df.empty:
+                    st.error("Dataset tidak tersedia.")
+                else:
+                    tfidf_matrix = None
+                    try:
+                        tfidf_matrix = tfidf.transform(books_df['text'].fillna('').tolist())
+                    except Exception:
+                        st.error("Gagal membuat TF-IDF Matrix dari kolom 'text'.")
 
                 if method == "TF-IDF Cosine":
                     if tfidf_matrix is None:
@@ -435,6 +435,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
