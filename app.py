@@ -173,9 +173,6 @@ selected_page = option_menu(
 st.sidebar.markdown("---")
 st.sidebar.caption("Dibuat oleh Nanda | 2025")
 
-# ----------------------
-# 4. Konten Halaman
-# ----------------------
 
 # ===============================================
 # Halaman 1: BERANDA
@@ -513,6 +510,7 @@ elif selected_page == "Feedback":
                 st.balloons()
             except Exception as e:
                 st.error(f"❌ Gagal menyimpan feedback ke Google Sheets: {e}")
+
 
 
 
