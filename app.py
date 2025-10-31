@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import KMeans
+from streamlit_option_menu import option_menu
 from sklearn.neighbors import NearestNeighbors
 import plotly.express as px
 
@@ -19,6 +20,7 @@ st.set_page_config(
 st.title("📚 Book Recommendation Dashboard")
 st.write("Sistem rekomendasi buku berbasis **TF-IDF**, **Cosine Similarity**, dan **K-Means Clustering**")
 
+@st.cache_resource
 def load_models():
     """
     Memuat model TF-IDF, SVM, dan K-Means dari file .pkl.
@@ -38,13 +40,24 @@ def load_models():
 # 🔹 LOAD DATA
 # =====================================
 @st.cache_data
-def load_data():
-    df = pd.read_csv("books.csv")
-    df = df.dropna(subset=["title"])
-    df = df.reset_index(drop=True)
-    return df
+def load_library_data(file_path="books.csv"):
+    """
+    Memuat data perpustakaan yang SUDAH DIOLAH (RINGKASAN) dari file CSV.
+    File ini digunakan untuk Tab Rekomendasi.
+    """
+    try:
+        df = pd.read_csv(file_path)
+        return df
+    except FileNotFoundError:
+        st.error(f"File data '{file_path}' (RINGKASAN) tidak ditemukan.")
+        return pd.DataFrame()
+    except KeyError as e:
+        st.error(f"Kolom {e} tidak ditemukan di 'data_perpustakaan.csv'.")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat memuat data CSV (Ringkasan): {e}")
+        return pd.DataFrame()
 
-df = load_data()
 
 # =====================================
 # 🔹 TF-IDF + KMEANS
@@ -130,6 +143,7 @@ elif menu == "K-Means Clustering":
     st.dataframe(df[df["cluster"] == selected_cluster][["title", "authors", "categories"]].head(10))
 
     st.success("Total cluster: {}".format(k))
+
 
 
 
