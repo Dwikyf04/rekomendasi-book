@@ -83,23 +83,11 @@ def add_history(username, query, method):
 # ---------------------------
 @st.cache_resource
 def load_models():
-    # returns (tfidf, kmeans, knn, embeddings)
-    def safe_load(path):
-        if os.path.exists(path):
-            try:
-                return joblib.load(path)
-            except Exception as e:
-                st.sidebar.error(f"Failed to load {os.path.basename(path)}: {e}")
-                return None
-        else:
-            st.sidebar.warning(f"Missing: {os.path.basename(path)}")
-            return None
-
-    tfidf = safe_load(os.path.join(MODELS_DIR, "tfidf_vectorizer.pkl"))
-    kmeans = safe_load(os.path.join(MODELS_DIR, "kmeans_model.pkl"))
-    knn = safe_load(os.path.join(MODELS_DIR, "knn_model.pkl"))
-    embeddings = safe_load(os.path.join(MODELS_DIR, "embeddings.pkl"))
-    return tfidf, kmeans, knn, embeddings
+    tfidf_vectorizer = joblib.load("model/tfidf_vectorizer.pkl")
+    kmeans_model = joblib.load("model/kmeans_model.pkl")
+    knn_model = joblib.load("model/knn_model.pkl")
+    embeddings = joblib.load("model/embeddings.pkl")
+    return tfidf_vectorizer, kmeans_model, knn_model, embeddings
 
 def ensure_text_column(df):
     if 'text' not in df.columns:
@@ -424,6 +412,7 @@ elif tab == "About":
 # Footer
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Use responsibly.")
+
 
 
 
