@@ -267,16 +267,16 @@ else:
 
     elif tab == "Recommender":
         st.header("🔎 Book Recommender")
-        st.markdown("Cari buku (dengan toleransi typo). Sistem akan otomatis menggunakan metode **Hybrid** (TF-IDF + Embedding) untuk menemukan hasil terbaik.")
+        st.markdown("Cari buku anda.")
     
     # --- Input Kueri ---
-        query = st.text_input("Cari judul buku (typo OK):", value="")
+        query = st.text_input("Cari judul buku:", value="")
 
     # --- Pengaturan Rekomendasi (Sebelum Tombol) ---
         st.subheader("Pengaturan Rekomendasi")
         col_k, col_alpha = st.columns(2)
         with col_k:
-            top_k = st.slider("Jumlah Hasil (Top K)", 3, 12, 6)
+            top_k = st.slider("Jumlah Hasil", 3, 12, 6)
         with col_alpha:
         # 'alpha' sekarang menjadi slider utama, bukan di dalam 'if'
             alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
@@ -339,7 +339,7 @@ else:
                     scores = {i: combined[i] for i in top_idx}
 
                 # --- 5. Tampilkan Hasil (UI Kartu) ---
-                    st.subheader("Rekomendasi (Metode Hybrid Otomatis)")
+                    st.subheader("Rekomendasi buku")
                 
                     if len(top_idx) > 0:
                         for i in top_idx:
@@ -411,6 +411,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
