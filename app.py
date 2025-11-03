@@ -312,10 +312,7 @@ else:
         }
     )
 
-    # --- FIX 1: (INDENTASI) ---
-    # Seluruh blok 'if tab ==' harus di-indent satu level
-    # agar berada di dalam 'else:' dari pengecekan login
-
+ 
     # ------- Home -------
     if tab == "Home":
         if not books_df.empty:
@@ -437,55 +434,76 @@ else:
                         st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
 
     # ... (setelah tab Home dan Recommender) ...
+    # GANTI SELURUH BLOK INI DI app.py
+
     elif tab == "For You":
         st.header("Personalized For You (User-Based)")
         st.markdown("Rekomendasi buku berdasarkan selera Anda.")
-    
-        # FIX 2: Periksa model yang relevan
+
         if knn_user_model is None or user_item_matrix is None:
             st.warning("Model rekomendasi personalisasi (User-Based) belum tersedia.")
             st.info("Model ini harus dibuat dari data rating pengguna. Jalankan 'train_user_model.py' jika Anda sudah memiliki cukup data rating.")
         else:
             current_user = st.session_state['username']
-        
+    
             if current_user not in user_item_matrix.index:
                 st.info("Anda belum memberi cukup rating. Silakan beri rating di tab 'Recommender' untuk mendapatkan rekomendasi personal.")
             else:
                 with st.spinner("Mencari pengguna yang mirip dengan Anda..."):
                     try:
-                        # 1. Dapatkan index & data pengguna saat ini
+                    # 1. Dapatkan index & data pengguna saat ini
                         user_index = user_item_matrix.index.get_loc(current_user)
                         user_vector = user_item_matrix.iloc[user_index].values.reshape(1, -1)
-                        
-                        # 2. Temukan tetangga (pengguna serupa)
-                        distances, indices = knn_user_model.kneighbors(user_vector, n_neighbors=6)
-                        
-                        similar_user_indices = indices.flatten()[1:]
+                    
+                    # --- PERBAIKAN DI SINI ---
+                    # Dapatkan jumlah total pengguna di model
+                        n_users_in_model = user_item_matrix.shape[0] 
+                    
+                    # Tentukan jumlah tetangga (k) yang aman
+                    # Minta 6 tetangga, tapi tidak lebih dari total pengguna
+                        k_neighbors = min(6, n_users_in_model) 
+                    
+                    # Pastikan k_neighbors > 1 (karena 1 adalah diri sendiri)
+                        if k_neighbors <= 1:
+                            st.info("Tidak ada cukup data pengguna lain untuk perbandingan. Coba tambahkan lebih banyak rating dari pengguna berbeda.")
+                            st.stop() # Hentikan eksekusi di sini
+                    # ---------------------------
+
+                    # 2. Temukan tetangga (pengguna serupa)
+                        distances, indices = knn_user_model.kneighbors(user_vector, n_neighbors=k_neighbors)
+                    
+                    # Mulai dari [1:] untuk melewati diri sendiri
+                        similar_user_indices = indices.flatten()[1:] 
                         similar_users = user_item_matrix.index[similar_user_indices]
-                        
-                        st.write(f"Pengguna dengan selera mirip: {', '.join(similar_users)}")
-                        
-                        # 3. Kumpulkan rekomendasi
+                    
+                        if not similar_users.empty:
+                            st.write(f"Pengguna dengan selera mirip: {', '.join(similar_users)}")
+                        else:
+                            st.write("Tidak ada pengguna lain yang seleranya mirip.")
+
+                    # 3. Kumpulkan rekomendasi
                         similar_user_ratings = user_item_matrix.loc[similar_users]
-                        recommended_books = similar_user_ratings.apply(lambda row: row[row > 3].index, axis=1).explode()
-                        
-                        # 4. Filter buku yang sudah Anda baca
+                        if similar_user_ratings.empty:
+                            recommended_books = pd.Series(dtype=object) # Buat series kosong
+                        else:
+                            recommended_books = similar_user_ratings.apply(lambda row: row[row > 3].index, axis=1).explode()
+                    
+                    # 4. Filter buku yang sudah Anda baca
                         books_user_has_read = user_item_matrix.loc[current_user][user_item_matrix.loc[current_user] > 0].index
                         final_recommendations = recommended_books[~recommended_books.isin(books_user_has_read)]
-                        
-                        # 5. Tampilkan hasil teratas
+                    
+                    # 5. Tampilkan hasil teratas
                         st.subheader("Buku yang Mungkin Anda Suka:")
                         if final_recommendations.empty or final_recommendations.isnull().all():
                             st.info("Tidak ada rekomendasi baru saat ini.")
                         else:
                             top_picks = final_recommendations.value_counts().head(10).index
-                            
+                        
                             for book_title in top_picks:
                                 with st.container(border=True):
-                                    # Gunakan .get(0, {}) untuk menghindari error jika buku tidak ditemukan
-                                    buku_data = books_df[books_df['title'] == book_title]
-                                    if not buku_data.empty:
-                                        buku_data = buku_data.iloc[0]
+                                    buku_data_list = books_df[books_df['title_norm'] == book_title]
+                                    if not buku_data_list.empty:
+                                        buku_data = buku_data_list.iloc[0]
                                         st.markdown(f"**{buku_data['title']}**")
                                         st.caption(f"Penulis: {buku_data.get('authors', 'N/A')}")
                                     else:
@@ -557,6 +575,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
