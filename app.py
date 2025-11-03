@@ -256,11 +256,11 @@ else:
 
     # ------- Home -------
 if tab == "Home":
-        if not books_df.empty:
-            st.write(f"Dataset: {len(books_df)} buku")
-            st.dataframe(books_df[['title','authors','categories']].head(8))
-        else:
-            st.info("Dataset belum dimuat. Pergi ke tab 'Upload Data' untuk mengunggah 'data - books.csv'.")
+    if not books_df.empty:
+        st.write(f"Dataset: {len(books_df)} buku")
+        st.dataframe(books_df[['title','authors','categories']].head(8))
+    else:
+        st.info("Dataset belum dimuat. Pergi ke tab 'Upload Data' untuk mengunggah 'data - books.csv'.")
 
     # ------- Recommender -------
     # GANTI SELURUH BLOK 'elif tab == "Recommender":' DENGAN INI
@@ -437,6 +437,7 @@ elif tab == "About":
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
