@@ -160,7 +160,7 @@ st.markdown("""
 st.markdown('<div class="header"><h2>Book Recommender</h2></div>', unsafe_allow_html=True)
 tab = option_menu(
     menu_title=None, 
-    options=["Home", "Recommender", "About"], # "Clusters",
+    options=["Home", "Recommender", "Cluster" ,"About"], # "Clusters",
     icons=["house-door-fill", "star-fill", "search", "cloud-upload-fill", "info-circle-fill"], 
     orientation="horizontal",
     styles={
@@ -440,6 +440,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
