@@ -266,110 +266,97 @@ else:
     # GANTI SELURUH BLOK 'elif tab == "Recommender":' DENGAN INI
 
     elif tab == "Recommender":
-        st.header("🔎 Book Recommender")
+    st.header("🔎 Book Recommender")
+    st.markdown("Cari buku (dengan toleransi typo). Sistem akan otomatis menggunakan metode **Hybrid** (TF-IDF + Embedding) untuk menemukan hasil terbaik.")
     
-        col1, col2 = st.columns([3,1])
-        query = col1.text_input("Cari judul buku (typo OK):", value="")
-        method = col2.selectbox("Method", ["Hybrid (TFIDF+Embedding)", "TF-IDF Cosine", "Embedding + KNN"])
-        top_k = st.slider("Top K", 3, 12, 6)
+    # --- Input Kueri ---
+    query = st.text_input("Cari judul buku (typo OK):", value="")
 
-        cand = None
-        if query and not books_df.empty:
-            match, score = fuzzy_match(query, books_df['title_norm'].tolist())
+    # --- Pengaturan Rekomendasi (Sebelum Tombol) ---
+    st.subheader("Pengaturan Rekomendasi")
+    col_k, col_alpha = st.columns(2)
+    with col_k:
+        top_k = st.slider("Jumlah Hasil (Top K)", 3, 12, 6)
+    with col_alpha:
+        # 'alpha' sekarang menjadi slider utama, bukan di dalam 'if'
+        alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
+                          help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
+
+    # --- Fuzzy Match (Deteksi Typo) ---
+    cand = None
+    if query and not books_df.empty:
+        match, score = fuzzy_match(query, books_df['title_norm'].tolist())
         
-        # PERBAIKAN: Hanya terima fuzzy match jika skornya cukup tinggi
-            if score > 70:
-                cand = match
-                st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
+        # Ambang batas agar tidak salah tebak
+        if score > 70:
+            cand = match
+            st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
+        else:
+            st.caption("Tidak ada judul yang mirip, menggunakan pencarian teks penuh...")
+
+    # --- Tombol Aksi ---
+    if st.button("Dapatkan Rekomendasi"):
+        with st.spinner("Menganalisis dan mencari rekomendasi terbaik... ⏳"):
+            
+            if books_df.empty:
+                st.error("Dataset tidak tersedia.")
+            
+            # Periksa apakah model & matriks (dari perbaikan error sebelumnya) sudah siap
+            elif tfidf_matrix is None or embeddings is None or not HAS_SBERT:
+                st.error("Model yang dibutuhkan (TF-IDF Matrix / Embeddings / SBERT) tidak tersedia.")
+            
             else:
-                st.caption("Tidak ada judul yang mirip, menggunakan pencarian teks penuh...")
-
-        if st.button("Recommend"):
-        # Pindahkan 'st.spinner' ke sini
-            with st.spinner("Sedang mencari rekomendasi terbaik... ⏳"):
-            
-                if books_df.empty:
-                    st.error("Dataset tidak tersedia.")
-            
-            # --- Perhitungan Vektor Query (Dilakukan sekali) ---
-            
-            # 1. Vektor TF-IDF (selalu diperlukan untuk TF-IDF / Hybrid)
-                vec_tfidf = None
-                if (method == "TF-IDF Cosine" or method == "Hybrid (TFIDF+Embedding)") and tfidf_matrix is not None:
-                    query_to_transform = query if not cand else cand
-                    vec_tfidf = tfidf.transform([query_to_transform])
-            
-            # 2. Vektor Embedding (selalu diperlukan untuk KNN / Hybrid)
-                q_emb = None
-                if (method == "Embedding + KNN" or method == "Hybrid (TFIDF+Embedding)") and embeddings is not None and HAS_SBERT:
-                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-                    query_to_encode = query if not cand else cand
-                    q_emb = s_model.encode(query_to_encode, convert_to_tensor=False).reshape(1,-1)
-            
-            # --- Logika Metode ---
-            
-                top_idx = []
-                scores = {}
-            
-                if method == "TF-IDF Cosine":
-                    if tfidf_matrix is None or vec_tfidf is None:
-                        st.error("Model TF-IDF tidak tersedia.")
-                    else:
-                        sims = cosine_similarity(vec_tfidf, tfidf_matrix).flatten()
-                        top_idx = sims.argsort()[::-1][:top_k]
-                        scores = {i: sims[i] for i in top_idx} # Simpan skor
-            
-                elif method == "Embedding + KNN":
-                    if knn_model is None or q_emb is None:
-                        st.error("Model Embedding/KNN tidak tersedia.")
-                    else:
-                        dists, idxs = knn_model.kneighbors(q_emb, n_neighbors=top_k)
-                        top_idx = idxs.flatten()
-                        scores = {idx: (1.0 - dist) for idx, dist in zip(top_idx, dists.flatten())} # Ubah jarak ke similaritas
-
-                elif method == "Hybrid (TFIDF+Embedding)":
-                    alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5)
+                # --- Logika HYBRID (Satu-satunya metode) ---
                 
-                    if tfidf_matrix is None or embeddings is None or vec_tfidf is None or q_emb is None:
-                        st.error("Model yang dibutuhkan untuk Hybrid tidak tersedia.")
-                    else:
-                    # Skor tfidf
-                        tfidf_sim = cosine_similarity(vec_tfidf, tfidf_matrix).flatten()
-                    
-                    # Skor embedding
-                    # Asumsi 'embeddings' adalah array yang sinkron
-                        emb_array = np.array(embeddings) 
-                        emb_sim = cosine_similarity(q_emb, emb_array).flatten()
+                # 1. Tentukan Kueri (Hasil typo atau teks asli)
+                query_text = query if not cand else cand
+                
+                # 2. Skor TF-IDF
+                try:
+                    vec_tfidf = tfidf.transform([query_text])
+                    tfidf_sim = cosine_similarity(vec_tfidf, tfidf_matrix).flatten()
+                except Exception as e_tfidf:
+                    st.error(f"Error TF-IDF: {e_tfidf}")
+                    tfidf_sim = np.zeros(len(books_df))
 
-                    # Normalisasi dan gabungkan (INI ADALAH BARIS ERROR ANDA)
-                    # Ini sekarang aman karena 'tfidf_matrix' dan 'emb_array'
-                    # sama-sama dimuat dari file dan memiliki panjang yang sama
-                        tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
-                        eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
-                        combined = alpha * eb_norm + (1 - alpha) * tf_norm
-                    
-                        top_idx = combined.argsort()[::-1][:top_k]
-                        scores = {i: combined[i] for i in top_idx}
-            
-            # --- TAMPILKAN HASIL (Satu Kali di Akhir) ---
-                st.subheader(f"Rekomendasi ({method})")
-            
+                # 3. Skor Embedding
+                try:
+                    emb_array = np.array(embeddings)
+                    s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+                    q_emb = s_model.encode(query_text, convert_to_tensor=False).reshape(1,-1)
+                    emb_sim = cosine_similarity(q_emb, emb_array).flatten()
+                except Exception as e_emb:
+                    st.error(f"Error Embedding: {e_emb}")
+                    emb_sim = np.zeros(len(books_df))
+
+                # 4. Normalisasi dan Gabungkan
+                # (Baris ini sekarang aman karena 'tfidf_matrix' dan 'embeddings' sinkron)
+                tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
+                eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
+                combined = alpha * eb_norm + (1 - alpha) * tf_norm
+                
+                top_idx = combined.argsort()[::-1][:top_k]
+                scores = {i: combined[i] for i in top_idx}
+
+                # --- 5. Tampilkan Hasil (UI Kartu) ---
+                st.subheader("Rekomendasi (Metode Hybrid Otomatis)")
+                
                 if len(top_idx) > 0:
                     for i in top_idx:
                         buku = books_df.iloc[i]
-                    # PERBAIKAN TAMPILAN: Gunakan st.container untuk "Kartu"
+                        # Tampilan kartu yang lebih profesional
                         with st.container(border=True):
                             st.markdown(f"**{buku['title']}**")
                             st.caption(f"Penulis: {buku.get('authors', 'N/A')} | Kategori: {buku.get('categories', 'N/A')}")
                             st.write(shorten(str(buku.get('description', buku.get('text', ''))), width=200, placeholder="..."))
-                            st.caption(f"Skor: {scores.get(i, 0.0):.4f}")
-                
-                # Simpan riwayat (hanya jika ada hasil)
+                            st.caption(f"Skor Gabungan: {scores.get(i, 0.0):.4f}")
+                    
+                    # Simpan riwayat
                     if 'username' in st.session_state:
-                        add_history(st.session_state['username'], query, method)
-            
+                        add_history(st.session_state['username'], query, f"HYBRID (a={alpha})")
+                
                 else:
-                # PERBAIKAN: Tangani jika tidak ada hasil
+                    # Tangani jika tidak ada hasil
                     st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
     # ------- Clusters -------
     elif tab == "Clusters":
@@ -425,6 +412,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
