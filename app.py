@@ -299,7 +299,7 @@ else:
     # --- UI Utama (Tabs) sekarang ada di dalam 'else' ---
     tab = option_menu(
         menu_title=None, 
-        options=["Home", "Recommender", "Clusters" ,"About"],
+        options=["Home", "Recommender","For You", "Clusters" ,"About"],
         icons=["house-door-fill", "star-fill", "search", "info-circle-fill"], 
         orientation="horizontal",
         styles={
@@ -333,96 +333,179 @@ else:
 
     # ------- Recommender -------
     elif tab == "Recommender":
-        st.header("🔎 Book Recommender")
-        st.markdown("Cari buku anda.")
+    st.header("🔎 Book Recommender")
+    st.markdown("Cari buku anda.")
+
+# --- Input Kueri ---
+    query = st.text_input("Cari judul buku:", value="")
+
+# --- Pengaturan Rekomendasi (Sebelum Tombol) ---
+    st.subheader("Pengaturan Rekomendasi")
+    col_k, col_alpha = st.columns(2)
+    with col_k:
+        top_k = st.slider("Jumlah Hasil", 3, 12, 6)
+    with col_alpha:
+    # 'alpha' sekarang menjadi slider utama, bukan di dalam 'if'
+        alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
+                         help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
+# --- Fuzzy Match (Deteksi Typo) ---
+    cand = None
+    if query and not books_df.empty:
+    # 1. Dapatkan skor DARI DALAM BLOK INI
+        match, score = fuzzy_match(query, books_df['title_norm'].tolist())
     
-    # --- Input Kueri ---
-        query = st.text_input("Cari judul buku:", value="")
+    # 2. Periksa skor (baris 291) - HARUS DI DALAM BLOK INI JUGA
+        if score > 70: 
+            cand = match
+            st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
+        else:
+            st.caption("Tidak ada judul yang mirip, menggunakan pencarian teks penuh...")
 
-    # --- Pengaturan Rekomendasi (Sebelum Tombol) ---
-        st.subheader("Pengaturan Rekomendasi")
-        col_k, col_alpha = st.columns(2)
-        with col_k:
-            top_k = st.slider("Jumlah Hasil", 3, 12, 6)
-        with col_alpha:
-        # 'alpha' sekarang menjadi slider utama, bukan di dalam 'if'
-            alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
-                             help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
-    # --- Fuzzy Match (Deteksi Typo) ---
-        cand = None
-        if query and not books_df.empty:
-        # 1. Dapatkan skor DARI DALAM BLOK INI
-            match, score = fuzzy_match(query, books_df['title_norm'].tolist())
+# --- Tombol Aksi ---
+    if st.button("Dapatkan Rekomendasi"):
         
-        # 2. Periksa skor (baris 291) - HARUS DI DALAM BLOK INI JUGA
-            if score > 70: 
-                cand = match
-                st.caption(f"Mungkin maksud Anda: **{cand}** (skor {score})")
+        # --- TAMBAHKAN FUNGSI HELPER DI SINI ---
+        # Fungsi ini akan dipanggil oleh tombol di bawah
+        # Pastikan tabel 'user_ratings' sudah Anda buat di Supabase
+        def save_rating(book_title, rating):
+            try:
+                current_user = st.session_state['username']
+                # 'upsert' akan insert baru atau update rating jika sudah ada
+                response = supabase.table('user_ratings').upsert({
+                    "username": current_user,
+                    "book_title": book_title,
+                    "rating": rating
+                }).execute()
+                
+                st.toast(f"Anda memberi {rating} bintang!")
+            except Exception as e:
+                # Tangkap error jika terjadi (misal, RLS policy)
+                st.error(f"Gagal menyimpan rating: {e}")
+        # ------------------------------------
+
+        with st.spinner("Menganalisis dan mencari rekomendasi terbaik... ⏳"):
+        
+            if books_df.empty:
+                st.error("Dataset tidak tersedia.")
+        
+            elif tfidf_matrix is None or embeddings is None or not HAS_SBERT:
+                st.error("Model yang dibutuhkan (TF-IDF Matrix / Embeddings / SBERT) tidak tersedia.")
+        
             else:
-                st.caption("Tidak ada judul yang mirip, menggunakan pencarian teks penuh...")
+            # --- Logika HYBRID (Satu-satunya metode) ---
+            
+            # 1. Tentukan Kueri (Hasil typo atau teks asli)
+                query_text = query if not cand else cand
+            
+            # 2. Skor TF-IDF
+                try:
+                    vec_tfidf = tfidf.transform([query_text])
+                    tfidf_sim = cosine_similarity(vec_tfidf, tfidf_matrix).flatten()
+                except Exception as e_tfidf:
+                    st.error(f"Error TF-IDF: {e_tfidf}")
+                    tfidf_sim = np.zeros(len(books_df))
 
-    # --- Tombol Aksi ---
-        if st.button("Dapatkan Rekomendasi"):
-            with st.spinner("Menganalisis dan mencari rekomendasi terbaik... ⏳"):
+            # 3. Skor Embedding
+                try:
+                    emb_array = np.array(embeddings)
+                    # s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') # Sudah di-load
+                    q_emb = sbert_model.encode(query_text, convert_to_tensor=False).reshape(1,-1)
+                    emb_sim = cosine_similarity(q_emb, emb_array).flatten()
+                except Exception as e_emb:
+                    st.error(f"Error Embedding: {e_emb}")
+                    emb_sim = np.zeros(len(books_df))
+
+            # 4. Normalisasi dan Gabungkan
+                tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
+                eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
+                combined = alpha * eb_norm + (1 - alpha) * tf_norm
             
-                if books_df.empty:
-                    st.error("Dataset tidak tersedia.")
+                top_idx = combined.argsort()[::-1][:top_k]
+                scores = {i: combined[i] for i in top_idx}
+
+            # --- 5. Tampilkan Hasil (UI Kartu) ---
+                st.subheader("Rekomendasi buku")
             
-            # Periksa apakah model & matriks (dari perbaikan error sebelumnya) sudah siap
-                elif tfidf_matrix is None or embeddings is None or not HAS_SBERT:
-                    st.error("Model yang dibutuhkan (TF-IDF Matrix / Embeddings / SBERT) tidak tersedia.")
-            
+                if len(top_idx) > 0:
+                    for i in top_idx:
+                        buku = books_df.iloc[i]
+                    # Tampilan kartu yang lebih profesional
+                        with st.container(border=True):
+                            st.markdown(f"**{buku['title']}**")
+                            st.caption(f"Penulis: {buku.get('authors', 'N/A')} | Kategori: {buku.get('categories', 'N/A')}")
+                            st.write(shorten(str(buku.get('description', buku.get('text', ''))), width=200, placeholder="..."))
+                            st.caption(f"Skor Gabungan: {scores.get(i, 0.0):.4f}")
+                            
+                            # --- ⬇️⬇️ TAMBAHKAN KODE INI DI SINI ⬇️⬇️ ---
+                            st.markdown("---") # Pemisah visual
+                            st.write("**Beri Rating:**")
+                            c1, c2, c3, c4, c5 = st.columns(5)
+                            
+                            # Gunakan 'i' (dari loop) untuk key unik
+                            c1.button("1 ⭐", on_click=save_rating, args=(buku['title'], 1), key=f"1_{i}")
+                            c2.button("2 ⭐", on_click=save_rating, args=(buku['title'], 2), key=f"2_{i}")
+                            c3.button("3 ⭐", on_click=save_rating, args=(buku['title'], 3), key=f"3_{i}")
+                            c4.button("4 ⭐", on_click=save_rating, args=(buku['title'], 4), key=f"4_{i}")
+                            c5.button("5 ⭐", on_click=save_rating, args=(buku['title'], 5), key=f"5_{i}")
+                            # --- ⬆️⬆️ AKHIR BLOK BARU ⬆️⬆️ ---
+                
+                # Simpan riwayat
+                    if 'username' in st.session_state:
+                        add_history(st.session_state['username'], query, f"HYBRID (a={alpha})")
                 else:
-                # --- Logika HYBRID (Satu-satunya metode) ---
-                
-                # 1. Tentukan Kueri (Hasil typo atau teks asli)
-                    query_text = query if not cand else cand
-                
-                # 2. Skor TF-IDF
-                    try:
-                        vec_tfidf = tfidf.transform([query_text])
-                        tfidf_sim = cosine_similarity(vec_tfidf, tfidf_matrix).flatten()
-                    except Exception as e_tfidf:
-                        st.error(f"Error TF-IDF: {e_tfidf}")
-                        tfidf_sim = np.zeros(len(books_df))
+                # Tangani jika tidak ada hasil
+                    st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
 
-                # 3. Skor Embedding
-                    try:
-                        emb_array = np.array(embeddings)
-                        # s_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2') # Sudah di-load
-                        q_emb = sbert_model.encode(query_text, convert_to_tensor=False).reshape(1,-1)
-                        emb_sim = cosine_similarity(q_emb, emb_array).flatten()
-                    except Exception as e_emb:
-                        st.error(f"Error Embedding: {e_emb}")
-                        emb_sim = np.zeros(len(books_df))
 
-                # 4. Normalisasi dan Gabungkan
-                    tf_norm = (tfidf_sim - tfidf_sim.min()) / (tfidf_sim.max() - tfidf_sim.min() + 1e-9)
-                    eb_norm = (emb_sim - emb_sim.min()) / (emb_sim.max() - emb_sim.min() + 1e-9)
-                    combined = alpha * eb_norm + (1 - alpha) * tf_norm
-                
-                    top_idx = combined.argsort()[::-1][:top_k]
-                    scores = {i: combined[i] for i in top_idx}
+# ... (setelah tab Home dan Recommender) ...
 
-                # --- 5. Tampilkan Hasil (UI Kartu) ---
-                    st.subheader("Rekomendasi buku")
+    elif tab == "For You":
+        st.header("Personalized For You (User-Based)")
+        st.markdown("Rekomendasi buku berdasarkan seleranya  Anda.")
+    
+        if knn_user_model is None or user_item_matrix is None:
+            st.warning("Model rekomendasi personalisasi belum tersedia.")
+        else:
+            current_user = st.session_state['username']
+        
+            if current_user not in user_item_matrix.index:
+                st.info("Anda belum memberi cukup rating. Silakan beri rating di tab 'Recommender' untuk mendapatkan rekomendasi personal.")
+            else:
+                with st.spinner("Mencari pengguna yang mirip dengan Anda..."):
+                # 1. Dapatkan index & data pengguna saat ini
+                    user_index = user_item_matrix.index.get_loc(current_user)
+                    user_vector = user_item_matrix.iloc[user_index].values.reshape(1, -1)
                 
-                    if len(top_idx) > 0:
-                        for i in top_idx:
-                            buku = books_df.iloc[i]
-                        # Tampilan kartu yang lebih profesional
-                            with st.container(border=True):
-                                st.markdown(f"**{buku['title']}**")
-                                st.caption(f"Penulis: {buku.get('authors', 'N/A')} | Kategori: {buku.get('categories', 'N/A')}")
-                                st.write(shorten(str(buku.get('description', buku.get('text', ''))), width=200, placeholder="..."))
-                                st.caption(f"Skor Gabungan: {scores.get(i, 0.0):.4f}")
-                    
-                    # Simpan riwayat
-                        if 'username' in st.session_state:
-                            add_history(st.session_state['username'], query, f"HYBRID (a={alpha})")
+                # 2. Temukan tetangga (pengguna serupa)
+                # Minta 6 tetangga (1 adalah diri sendiri)
+                    distances, indices = knn_user_model.kneighbors(user_vector, n_neighbors=6)
+                
+                    similar_user_indices = indices.flatten()[1:]
+                    similar_users = user_item_matrix.index[similar_user_indices]
+                
+                    st.write(f"Pengguna dengan selera mirip: {', '.join(similar_users)}")
+                
+                # 3. Kumpulkan rekomendasi
+                # Dapatkan semua buku yang telah dirate TINGGI oleh pengguna serupa
+                    similar_user_ratings = user_item_matrix.loc[similar_users]
+                    recommended_books = similar_user_ratings.apply(lambda row: row[row > 3].index, axis=1).explode()
+                
+                # 4. Filter buku yang sudah Anda baca
+                    books_user_has_read = user_item_matrix.loc[current_user][user_item_matrix.loc[current_user] > 0].index
+                    final_recommendations = recommended_books[~recommended_books.isin(books_user_has_read)]
+                
+                # 5. Tampilkan hasil teratas
+                    st.subheader("Buku yang Mungkin Anda Suka:")
+                    if final_recommendations.empty:
+                        st.info("Tidak ada rekomendasi baru saat ini.")
                     else:
-                    # Tangani jika tidak ada hasil
-                        st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
+                        top_picks = final_recommendations.value_counts().head(10).index
+                    
+                        for book_title in top_picks:
+                            with st.container(border=True):
+                                buku_data = books_df[books_df['title'] == book_title].iloc[0]
+                                st.markdown(f"**{buku_data['title']}**")
+                                st.caption(f"Penulis: {buku_data.get('authors', 'N/A')}")
                         
     # ------- Clusters -------
     elif tab == "Clusters":
@@ -488,5 +571,6 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
