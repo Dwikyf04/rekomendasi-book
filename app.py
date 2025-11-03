@@ -32,7 +32,7 @@ except Exception:
 st.set_page_config(page_title="Book Recommender", page_icon="📚", layout="wide")
 ROOT = os.getcwd()
 MODELS_DIR = os.path.join(ROOT, "model")
-BOOKS_CSV = os.path.join(ROOT, "data_books_cleaned.csv") # Pastikan ini nama file Anda
+BOOKS_CSV = os.path.join(ROOT, "data - books_cleaned.csv") # Pastikan ini nama file Anda
 
 # ---------------------------
 # Style (Tetap Sama)
@@ -557,4 +557,5 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
