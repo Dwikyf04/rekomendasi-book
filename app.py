@@ -32,7 +32,7 @@ except Exception:
 st.set_page_config(page_title="Book Recommender", page_icon="📚", layout="wide")
 ROOT = os.getcwd()
 MODELS_DIR = os.path.join(ROOT, "model")
-BOOKS_CSV = os.path.join(ROOT, "data - books_cleaned.csv") # Pastikan ini nama file Anda
+BOOKS_CSV = os.path.join(ROOT, "data - books_cleaning.csv") # Pastikan ini nama file Anda
 
 # ---------------------------
 # Style (Tetap Sama)
@@ -322,7 +322,7 @@ else:
             st.write(f"Dataset: {len(books_df)} buku")
             st.dataframe(books_df[['title','authors','categories']].head(8))
         else:
-            st.info("Dataset 'data_books_cleaned.csv' tidak dimuat.")
+            st.info("Dataset 'data - books_cleaned.csv' tidak dimuat.")
 
     # ------- Recommender -------
     elif tab == "Recommender":
@@ -557,5 +557,6 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
