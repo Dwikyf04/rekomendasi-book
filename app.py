@@ -332,7 +332,7 @@ else:
             st.info("Dataset 'data - books.csv' tidak dimuat.")
 
     # ------- Recommender -------
-    elif tab == "Recommender":
+elif tab == "Recommender":
     st.header("🔎 Book Recommender")
     st.markdown("Cari buku anda.")
 
@@ -571,6 +571,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
