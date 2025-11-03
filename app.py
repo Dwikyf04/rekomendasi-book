@@ -52,6 +52,12 @@ st.markdown("""
 # KONEKSI DATABASE (Supabase API)
 # DIUBAH: Menggantikan seluruh blok 'sqlite3'
 # ---------------------------
+# [GANTI BAGIAN INI DI app.py]
+
+# ---------------------------
+# KONEKSI DATABASE (Supabase API)
+# DIUBAH: Fungsi register_user dan add_history diperbaiki
+# ---------------------------
 DB_CONNECTED = False
 supabase: Client = None # Inisialisasi
 
@@ -73,27 +79,33 @@ def register_user(username, password):
     hashed_pw = make_hashes(password)
     
     try:
-        # Sintaks Supabase API
+        # Coba jalankan insert
         response = supabase.table('users').insert({
             "username": username,
             "password": hashed_pw
         }).execute()
         
-        if response.error:
-            if "duplicate key value" in response.error.message or "UniqueViolation" in str(response.error):
-                return False, "❌ Username sudah terdaftar."
-            return False, f"Error: {response.error.message}"
+        # --- PERBAIKAN ---
+        # Hapus 'if response.error:'
+        # Jika kode sampai di sini, itu berarti BERHASIL.
         
         return True, "✅ Registrasi berhasil."
+    
     except Exception as e:
-        return False, f"Error: {e}"
+        # --- PERBAIKAN ---
+        # Tangkap error di sini, di dalam blok 'except'
+        error_message = str(e)
+        if "duplicate key value" in error_message or "UniqueViolation" in error_message:
+            return False, "❌ Username sudah terdaftar."
+        # Tampilkan error lain jika bukan duplicate
+        return False, f"Error: {error_message}"
 
 def authenticate_user(username, password):
+    # Fungsi ini sudah benar dan tidak perlu diubah
     if not DB_CONNECTED: return False
     hashed_pw = make_hashes(password)
     
     try:
-        # Sintaks Supabase API
         response = supabase.table('users').select('*').eq('username', username).eq('password', hashed_pw).execute()
         
         if response.data and len(response.data) > 0:
@@ -108,7 +120,7 @@ def add_history(username, query, method):
     timestamp = int(pd.Timestamp.now().timestamp())
     
     try:
-        # Sintaks Supabase API
+        # Coba jalankan insert
         response = supabase.table('history').insert({
             "username": username,
             "timestamp": timestamp,
@@ -116,22 +128,24 @@ def add_history(username, query, method):
             "method": method
         }).execute()
         
-        if response.error:
-            st.error(f"Gagal menyimpan riwayat: {response.error.message}")
+        # --- PERBAIKAN ---
+        # Hapus 'if response.error:'
+        
     except Exception as e:
+        # --- PERBAIKAN ---
+        # Tangkap error di sini
         st.error(f"Gagal menyimpan riwayat: {e}")
 
 def get_history(username):
-    if not DB_CONNECTED: return pd.DataFrame() # Kembalikan DataFrame kosong
+    # Fungsi ini sudah benar dan tidak perlu diubah
+    if not DB_CONNECTED: return pd.DataFrame()
     
     try:
-        # Sintaks Supabase API
         response = supabase.table('history').select('timestamp, query, method').eq('username', username).order('timestamp', desc=True).limit(20).execute()
         
         if response.data:
-            # Kembalikan sebagai DataFrame agar kompatibel dengan sisa kode Anda
             return pd.DataFrame(response.data)
-        return pd.DataFrame() # Kembalikan DataFrame kosong jika tidak ada riwayat
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"Gagal mengambil riwayat: {e}")
         return pd.DataFrame()
@@ -474,3 +488,4 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
