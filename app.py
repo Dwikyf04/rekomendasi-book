@@ -287,7 +287,7 @@ else:
     # --- UI Utama (Tabs) sekarang ada di dalam 'else' ---
     tab = option_menu(
         menu_title=None, 
-        options=["Home", "Recommender","For You", "Clusters" ,"About"],
+        options=["Home", "Recommender", "Clusters" ,"About"],
         # FIX 3: Jumlah ikon (5) harus sama dengan jumlah options (5)
         icons=["house-door-fill", "star-fill", "person-fill", "search", "info-circle-fill"], 
         orientation="horizontal",
@@ -557,3 +557,4 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
