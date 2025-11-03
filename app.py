@@ -359,76 +359,73 @@ else:
                         st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
     # ------- Clusters -------
    elif tab == "Clusters":
-    st.header("📂 Jelajahi Cluster Buku (K-Means)")
+        st.header("Jelajahi Cluster Buku (K-Means)")
     
-    if books_df.empty:
-        st.warning("Dataset tidak tersedia.")
+        if books_df.empty:
+            st.warning("Dataset tidak tersedia.")
     
     # Periksa apakah model & matriks (dari load_models) sudah siap
-    elif tfidf_matrix is None or kmeans_model is None:
-        st.error("Model K-Means atau TF-IDF Matrix tidak dimuat. Fitur ini tidak tersedia.")
+        elif tfidf_matrix is None or kmeans_model is None:
+            st.error("Model K-Means atau TF-IDF Matrix tidak dimuat. Fitur ini tidak tersedia.")
     
-    else:
-        with st.spinner("Menganalisis dan memprediksi cluster... ⏳"):
-            try:
+        else:
+            with st.spinner("Menganalisis dan memprediksi cluster... ⏳"):
+                try:
                 # 1. Gunakan model yang SUDAH DIMUAT untuk memprediksi
                 # Ini jauh lebih cepat daripada melatih ulang
-                cluster_labels = kmeans_model.predict(tfidf_matrix)
-                books_df['cluster'] = cluster_labels
-            except Exception as e:
-                st.error(f"Gagal memprediksi cluster: {e}")
+                    cluster_labels = kmeans_model.predict(tfidf_matrix)
+                    books_df['cluster'] = cluster_labels
+                except Exception as e:
+                    st.error(f"Gagal memprediksi cluster: {e}")
                 # Hentikan eksekusi jika prediksi gagal
-                st.stop() 
+                    st.stop() 
 
         # --- Tampilkan Visualisasi (Grafik Batang) ---
-        st.subheader("Distribusi Buku per Cluster")
-        cluster_counts = books_df["cluster"].value_counts().reset_index()
-        cluster_counts.columns = ["Cluster", "Jumlah Buku"]
+            st.subheader("Distribusi Buku per Cluster")
+            cluster_counts = books_df["cluster"].value_counts().reset_index()
+            cluster_counts.columns = ["Cluster", "Jumlah Buku"]
         
-        try:
+            try:
             # Gunakan Plotly (jika sudah diimpor) untuk grafik interaktif
-            import plotly.express as px
-            fig = px.bar(cluster_counts.sort_values('Cluster'), 
-                         x="Cluster", 
-                         y="Jumlah Buku",
-                         color="Cluster", 
-                         title="Distribusi Buku per Cluster")
-            st.plotly_chart(fig, use_container_width=True)
-        except ImportError:
+                import plotly.express as px
+                fig = px.bar(cluster_counts.sort_values('Cluster'), 
+                             x="Cluster", 
+                             y="Jumlah Buku",
+                             color="Cluster", 
+                             title="Distribusi Buku per Cluster")
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
             # Fallback ke bar_chart bawaan Streamlit jika plotly tidak ada
-            st.bar_chart(cluster_counts.set_index('Cluster'))
+                st.bar_chart(cluster_counts.set_index('Cluster'))
 
         # --- Tampilkan Penjelajah Cluster (DataFrame) ---
-        st.subheader("Jelajahi Isi Cluster")
+            st.subheader("Jelajahi Isi Cluster")
         
         # Buat nama cluster (opsional tapi sangat disarankan)
         # SESUAIKAN NAMA INI dengan hasil analisis Anda
-        cluster_names = {
-            0: "Fiksi & Sastra",
-            1: "Teknis & Sains",
-            2: "Self-Help & Bisnis",
-            3: "Biografi & Sejarah",
-            4: "Fiksi Ilmiah & Fantasi",
-            5: "Misteri & Thriller",
+            cluster_names = {
+                1: "Fiction",
+                2: "Juvenile Fiction",
+                3: "Other",
             # ... tambahkan sesuai jumlah 'k' Anda
         }
         
         # Ambil cluster unik dari data yang sudah diprediksi
-        unique_clusters = sorted(books_df['cluster'].unique())
+            unique_clusters = sorted(books_df['cluster'].unique())
         
         # Buat label yang lebih deskriptif untuk selectbox
-        display_options = [f"Cluster {i}: {cluster_names.get(i, 'Umum')}" for i in unique_clusters]
+            display_options = [f"Cluster {i}: {cluster_names.get(i, 'Umum')}" for i in unique_clusters]
         
         # Tampilkan selectbox
-        selected_display_name = st.selectbox("Pilih cluster untuk dijelajahi:", display_options)
+            selected_display_name = st.selectbox("Pilih cluster untuk dijelajahi:", display_options)
         
         # Dapatkan angka cluster dari nama yang dipilih
-        selected_cluster_index = display_options.index(selected_display_name)
-        selected_cluster = unique_clusters[selected_cluster_index]
+            selected_cluster_index = display_options.index(selected_display_name)
+            selected_cluster = unique_clusters[selected_cluster_index]
 
         # Tampilkan DataFrame untuk cluster yang dipilih
-        st.dataframe(books_df[books_df['cluster'] == selected_cluster][['title', 'authors', 'categories']].head(50), 
-                     use_container_width=True)
+            st.dataframe(books_df[books_df['cluster'] == selected_cluster][['title', 'authors', 'categories']].head(50), 
+                         use_container_width=True)
     # ------- About -------
     elif tab == "About":
         st.header("Tentang Aplikasi Ini")
@@ -440,6 +437,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
