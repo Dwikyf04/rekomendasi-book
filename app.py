@@ -426,4 +426,134 @@ else:
                                 c1, c2, c3, c4, c5 = st.columns(5)
                                 
                                 c1.button("1 ⭐", on_click=save_rating, args=(buku['title'], 1), key=f"1_{i}")
-                                c2.button("2 ⭐", on_click=save_rating, args=(buku
+                                c2.button("2 ⭐", on_click=save_rating, args=(buku['title'], 2), key=f"2_{i}")
+                                c3.button("3 ⭐", on_click=save_rating, args=(buku['title'], 3), key=f"3_{i}")
+                                c4.button("4 ⭐", on_click=save_rating, args=(buku['title'], 4), key=f"4_{i}")
+                                c5.button("5 ⭐", on_click=save_rating, args=(buku['title'], 5), key=f"5_{i}")
+                    
+                        if 'username' in st.session_state:
+                            add_history(st.session_state['username'], query, f"HYBRID (a={alpha})")
+                    else:
+                        st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
+
+    # ... (setelah tab Home dan Recommender) ...
+    elif tab == "For You":
+        st.header("Personalized For You (User-Based)")
+        st.markdown("Rekomendasi buku berdasarkan selera Anda.")
+    
+        # FIX 2: Periksa model yang relevan
+        if knn_user_model is None or user_item_matrix is None:
+            st.warning("Model rekomendasi personalisasi (User-Based) belum tersedia.")
+            st.info("Model ini harus dibuat dari data rating pengguna. Jalankan 'train_user_model.py' jika Anda sudah memiliki cukup data rating.")
+        else:
+            current_user = st.session_state['username']
+        
+            if current_user not in user_item_matrix.index:
+                st.info("Anda belum memberi cukup rating. Silakan beri rating di tab 'Recommender' untuk mendapatkan rekomendasi personal.")
+            else:
+                with st.spinner("Mencari pengguna yang mirip dengan Anda..."):
+                    try:
+                        # 1. Dapatkan index & data pengguna saat ini
+                        user_index = user_item_matrix.index.get_loc(current_user)
+                        user_vector = user_item_matrix.iloc[user_index].values.reshape(1, -1)
+                        
+                        # 2. Temukan tetangga (pengguna serupa)
+                        distances, indices = knn_user_model.kneighbors(user_vector, n_neighbors=6)
+                        
+                        similar_user_indices = indices.flatten()[1:]
+                        similar_users = user_item_matrix.index[similar_user_indices]
+                        
+                        st.write(f"Pengguna dengan selera mirip: {', '.join(similar_users)}")
+                        
+                        # 3. Kumpulkan rekomendasi
+                        similar_user_ratings = user_item_matrix.loc[similar_users]
+                        recommended_books = similar_user_ratings.apply(lambda row: row[row > 3].index, axis=1).explode()
+                        
+                        # 4. Filter buku yang sudah Anda baca
+                        books_user_has_read = user_item_matrix.loc[current_user][user_item_matrix.loc[current_user] > 0].index
+                        final_recommendations = recommended_books[~recommended_books.isin(books_user_has_read)]
+                        
+                        # 5. Tampilkan hasil teratas
+                        st.subheader("Buku yang Mungkin Anda Suka:")
+                        if final_recommendations.empty or final_recommendations.isnull().all():
+                            st.info("Tidak ada rekomendasi baru saat ini.")
+                        else:
+                            top_picks = final_recommendations.value_counts().head(10).index
+                            
+                            for book_title in top_picks:
+                                with st.container(border=True):
+                                    # Gunakan .get(0, {}) untuk menghindari error jika buku tidak ditemukan
+                                    buku_data = books_df[books_df['title'] == book_title]
+                                    if not buku_data.empty:
+                                        buku_data = buku_data.iloc[0]
+                                        st.markdown(f"**{buku_data['title']}**")
+                                        st.caption(f"Penulis: {buku_data.get('authors', 'N/A')}")
+                                    else:
+                                        st.markdown(f"**{book_title}** (Metadata tidak ditemukan)")
+                    except Exception as e:
+                        st.error(f"Gagal memproses rekomendasi 'For You': {e}")
+            
+    # ------- Clusters -------
+    elif tab == "Clusters":
+        st.header("Jelajahi Cluster Buku (K-Means)")
+    
+        if books_df.empty:
+            st.warning("Dataset tidak tersedia.")
+    
+        elif tfidf_matrix is None or kmeans_model is None:
+            st.error("Model K-Means atau TF-IDF Matrix tidak dimuat. Fitur ini tidak tersedia.")
+    
+        else:
+            with st.spinner("Menganalisis dan memprediksi cluster... ⏳"):
+                try:
+                    cluster_labels = kmeans_model.predict(tfidf_matrix)
+                    books_df['cluster'] = cluster_labels
+                except Exception as e:
+                    st.error(f"Gagal memprediksi cluster: {e}")
+                    st.stop() 
+
+            st.subheader("Distribusi Buku per Cluster")
+            cluster_counts = books_df["cluster"].value_counts().reset_index()
+            cluster_counts.columns = ["Cluster", "Jumlah Buku"]
+        
+            try:
+                import plotly.express as px
+                fig = px.bar(cluster_counts.sort_values('Cluster'), 
+                             x="Cluster", 
+                             y="Jumlah Buku",
+                             color="Cluster", 
+                             title="Distribusi Buku per Cluster")
+                st.plotly_chart(fig, use_container_width=True)
+            except ImportError:
+                st.bar_chart(cluster_counts.set_index('Cluster'))
+
+            st.subheader("Jelajahi Isi Cluster")
+        
+            cluster_names = {
+                1: "Fiction",
+                2: "Juvenile Fiction",
+                3: "Other",
+                # ... tambahkan sesuai jumlah 'k' Anda
+            }
+        
+            unique_clusters = sorted(books_df['cluster'].unique())
+            display_options = [f"Cluster {i}: {cluster_names.get(i, 'Umum')}" for i in unique_clusters]
+            selected_display_name = st.selectbox("Pilih cluster untuk dijelajahi:", display_options)
+            
+            selected_cluster_index = display_options.index(selected_display_name)
+            selected_cluster = unique_clusters[selected_cluster_index]
+
+            st.dataframe(books_df[books_df['cluster'] == selected_cluster][['title', 'authors', 'categories']].head(50), 
+                         use_container_width=True)
+                         
+    # ------- About -------
+    elif tab == "About":
+        st.header("Tentang Aplikasi Ini")
+        st.write("Aplikasi portofoli saya buat sendiri. terinspirasi dari pengalaman saya menggunakan website / OPAC di perpustakaan. saya menggunakanTF-IDF, embeddings, KNN, dan KMeans untuk rekomendasi buku.")
+        st.write("referensi: Devika, P. V., Jyothisree, K., Rahul, P. V., Arjun, S., & Narayanan, J. (2021, July). Book recommendation system. In 2021 12th International Conference on Computing Communication and Networking Technologies (ICCCNT) (pp. 1-5). IEEE.")
+        st.write("Model file dimuat dari folder `/model`. Database pengguna disimpan menggunakan Supabase.") # Diperbarui
+        st.write("Untuk produksi: amankan kredensial, gunakan DB remote, dan jangan commit dataset privat ke GitHub.")
+
+# Footer (diletakkan di luar 'else' agar selalu tampil)
+st.markdown("---")
+st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
