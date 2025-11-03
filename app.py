@@ -34,7 +34,7 @@ st.set_page_config(page_title="Book Recommender", page_icon="📚", layout="wide
 ROOT = os.getcwd()
 MODELS_DIR = os.path.join(ROOT, "model")
 # HAPUS: DB_FILE = os.path.join(ROOT, "users.db")
-BOOKS_CSV = os.path.join(ROOT, "data - books.csv")
+BOOKS_CSV = os.path.join(ROOT, "data - books_cleaning.csv")
 
 # ---------------------------
 # Style (Tetap Sama)
@@ -488,4 +488,5 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
