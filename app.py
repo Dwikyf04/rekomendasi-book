@@ -27,7 +27,7 @@ except Exception:
 # ---------------------------
 # Config
 # ---------------------------
-st.set_page_config(page_title="Book Recommender — Nanda", page_icon="📚", layout="wide")
+st.set_page_config(page_title="Book Recommender", page_icon="📚", layout="wide")
 ROOT = os.getcwd()
 MODELS_DIR = os.path.join(ROOT, "model")
 DB_FILE = os.path.join(ROOT, "users.db")  # Menggunakan file .db
@@ -157,7 +157,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="header"><h2>Book Recommender (Nanda)</h2></div>', unsafe_allow_html=True)
+st.markdown('<div class="header"><h2>Book Recommender</h2></div>', unsafe_allow_html=True)
 tab = option_menu(
     menu_title=None, 
     options=["Home", "Recommender", "Clusters", "About"],
@@ -417,13 +417,15 @@ else:
     # ------- About -------
     elif tab == "About":
         st.header("Tentang Aplikasi Ini")
-        st.write("Aplikasi portofolio oleh Nanda. Mendemonstrasikan TF-IDF, embeddings, KNN, dan KMeans untuk rekomendasi buku.")
+        st.write("Aplikasi portofoli saya buat sendiri. terinspirasi dari pengalaman saya menggunakan website / OPAC di perpustakaan. saya menggunakanTF-IDF, embeddings, KNN, dan KMeans untuk rekomendasi buku.")
+        st.write("referensi: Devika, P. V., Jyothisree, K., Rahul, P. V., Arjun, S., & Narayanan, J. (2021, July). Book recommendation system. In 2021 12th International Conference on Computing Communication and Networking Technologies (ICCCNT) (pp. 1-5). IEEE.)
         st.write("Model file dimuat dari folder `/model`. Database pengguna disimpan di `users.db`.")
         st.write("Untuk produksi: amankan kredensial, gunakan DB remote, dan jangan commit dataset privat ke GitHub.")
 
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
