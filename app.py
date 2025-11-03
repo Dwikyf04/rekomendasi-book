@@ -266,26 +266,26 @@ else:
     # GANTI SELURUH BLOK 'elif tab == "Recommender":' DENGAN INI
 
     elif tab == "Recommender":
-    st.header("🔎 Book Recommender")
-    st.markdown("Cari buku (dengan toleransi typo). Sistem akan otomatis menggunakan metode **Hybrid** (TF-IDF + Embedding) untuk menemukan hasil terbaik.")
+        st.header("🔎 Book Recommender")
+        st.markdown("Cari buku (dengan toleransi typo). Sistem akan otomatis menggunakan metode **Hybrid** (TF-IDF + Embedding) untuk menemukan hasil terbaik.")
     
     # --- Input Kueri ---
-    query = st.text_input("Cari judul buku (typo OK):", value="")
+        query = st.text_input("Cari judul buku (typo OK):", value="")
 
     # --- Pengaturan Rekomendasi (Sebelum Tombol) ---
-    st.subheader("Pengaturan Rekomendasi")
-    col_k, col_alpha = st.columns(2)
-    with col_k:
-        top_k = st.slider("Jumlah Hasil (Top K)", 3, 12, 6)
-    with col_alpha:
+        st.subheader("Pengaturan Rekomendasi")
+        col_k, col_alpha = st.columns(2)
+        with col_k:
+            top_k = st.slider("Jumlah Hasil (Top K)", 3, 12, 6)
+        with col_alpha:
         # 'alpha' sekarang menjadi slider utama, bukan di dalam 'if'
-        alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
-                          help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
+            alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
+                              help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
 
     # --- Fuzzy Match (Deteksi Typo) ---
-    cand = None
-    if query and not books_df.empty:
-        match, score = fuzzy_match(query, books_df['title_norm'].tolist())
+        cand = None
+        if query and not books_df.empty:
+            match, score = fuzzy_match(query, books_df['title_norm'].tolist())
         
         # Ambang batas agar tidak salah tebak
         if score > 70:
