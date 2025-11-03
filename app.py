@@ -262,13 +262,13 @@ else:
         st.header("🔎 Book Recommender (Metode KNN)")
         st.markdown("Cari judul buku yang ada di database. Sistem akan menemukan buku-buku lain yang paling mirip berdasarkan *item-based collaborative filtering* (sesuai jurnal Devika, dkk. [cite: 140]).")
     
-    # --- Input Kueri ---
-        query = st.text_input("Cari judul buku (typo OK):", value="Harry Potter and the Sorcerer's Stone (Book 1)")
+   
+        query = st.text_input("Cari judul buku:", value="Harry Potter and the Sorcerer's Stone (Book 1)")
 
-    # --- Pengaturan Rekomendasi ---
-        top_k = st.slider("Jumlah Hasil (Top K)", 3, 12, 5) # Default 5, seperti di jurnal
+   
+        top_k = st.slider("Jumlah Hasil", 3, 12, 5) 
 
-    # --- Fuzzy Match (Mencari Buku di Database) ---
+
         cand = None
         if query and not books_df.empty:
             match, score = fuzzy_match(query, books_df['title_norm'].tolist())
@@ -286,7 +286,7 @@ else:
                 if books_df.empty:
                     st.error("Dataset tidak tersedia.")
             
-            # Periksa apakah model & data yang relevan sudah siap
+        
                 elif knn_model is None or embeddings is None:
                     st.error("Model (KNN / Embeddings) tidak tersedia.")
             
@@ -296,21 +296,20 @@ else:
                 else:
                 # --- Logika KNN (Sesuai Jurnal) ---
                     try:
-                    # 1. Dapatkan index dari buku yang di-match
+                    
                         idx_query = books_df[books_df['title_norm'] == cand].index[0]
                     
-                    # 2. Ambil embedding (vektor) yang sudah ada dari buku tsb
+                 
                         emb_array = np.array(embeddings)
                         q_emb = emb_array[idx_query].reshape(1, -1)
                     
-                    # 3. Gunakan model KNN yang sudah dilatih untuk menemukan tetangga
-                    # Minta top_k + 1 (karena hasil pertama adalah buku itu sendiri)
+                    # 
                         dists, idxs = knn_model.kneighbors(q_emb, n_neighbors=top_k + 1)
                     
                         top_idx = idxs.flatten()
                         top_dists = dists.flatten()
 
-                    # --- 4. Tampilkan Hasil (Seperti Fig. 4 di Jurnal) ---
+                   
                         st.subheader(f"Buku yang Mirip dengan '{cand}':")
                     
                     # Mulai dari 1 untuk melewati buku itu sendiri
@@ -324,7 +323,7 @@ else:
                                     st.markdown(f"**{buku['title']}**")
                                     st.caption(f"Penulis: {buku.get('authors', 'N/A')}")
                                 
-                                # Tampilkan DISTANCE, sesuai jurnal [cite: 141]
+                               
                                     st.markdown(f"**Distance: {dist:.4f}**")
                     
                         # Simpan riwayat
@@ -416,4 +415,5 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
