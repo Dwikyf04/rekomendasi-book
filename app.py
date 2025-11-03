@@ -158,31 +158,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="header"><h2>Book Recommender</h2></div>', unsafe_allow_html=True)
-tab = option_menu(
-    menu_title=None, 
-    options=["Home", "Recommender", "Clusters" ,"About"], # "Clusters",
-    icons=["house-door-fill", "star-fill", "search", "cloud-upload-fill", "info-circle-fill"], 
-    orientation="horizontal",
-    styles={
-        "container": {
-            "padding": "8px", 
-            "background-color": "#ffd100", 
-            "border-radius": "6px",
-            "gap": "12px",
-            "justify-content": "center"
-        },
-        "nav-link": {
-            "font-weight": "600",
-            "color": "#002855",
-            "text-align": "center",
-            "--hover-color": "#eee"
-        },
-        "nav-link-selected": {
-            "background-color": "#002855", 
-            "color": "white"
-        },
-    }
-)
+
+# --- FIX: Pindahkan 'tab' ke DALAM 'else' blok login ---
+# tab = option_menu(...) # <-- HAPUS DARI SINI
 
 # ---------------------------
 # Sidebar: Login / Register (Struktur dari File 1, Backend dari File 2)
@@ -251,21 +229,46 @@ else:
     books_df = load_books(BOOKS_CSV)
     # --- AKHIR DARI PEMUATAN ---
 
-    # --- UI Utama (Tabs) sekarang ada di dalam 'else' ---
-    #tab = st.selectbox("", ["Home", "Recommender", "Clusters", "Upload Data", "About"])
+    # --- FIX: Pindahkan 'tab' ke SINI ---
+    # Navbar sekarang hanya akan muncul SETELAH login
+    tab = option_menu(
+        menu_title=None, 
+        options=["Home", "Recommender", "Clusters" ,"About"], # "Clusters",
+        icons=["house-door-fill", "star-fill", "search", "cloud-upload-fill", "info-circle-fill"], 
+        orientation="horizontal",
+        styles={
+            "container": {
+                "padding": "8px", 
+                "background-color": "#ffd100", 
+                "border-radius": "6px",
+                "gap": "12px",
+                "justify-content": "center"
+            },
+            "nav-link": {
+                "font-weight": "600",
+                "color": "#002855",
+                "text-align": "center",
+                "--hover-color": "#eee"
+            },
+            "nav-link-selected": {
+                "background-color": "#002855", 
+                "color": "white"
+            },
+        }
+    )
 
+    # --- FIX: SELURUH LOGIKA TAB DI-INDENT KE DALAM 'else' ---
+    
     # ------- Home -------
-if tab == "Home":
-    if not books_df.empty:
-        st.write(f"Dataset: {len(books_df)} buku")
-        st.dataframe(books_df[['title','authors','categories']].head(8))
-    else:
-        st.info("Dataset belum dimuat. Pergi ke tab 'Upload Data' untuk mengunggah 'data - books.csv'.")
+    if tab == "Home":
+        if not books_df.empty:
+            st.write(f"Dataset: {len(books_df)} buku")
+            st.dataframe(books_df[['title','authors','categories']].head(8))
+        else:
+            st.info("Dataset belum dimuat. Pergi ke tab 'Upload Data' untuk mengunggah 'data - books.csv'.")
 
     # ------- Recommender -------
-    # GANTI SELURUH BLOK 'elif tab == "Recommender":' DENGAN INI
-
-elif tab == "Recommender":
+    elif tab == "Recommender":
         st.header("🔎 Book Recommender")
         st.markdown("Cari buku anda.")
     
@@ -280,8 +283,8 @@ elif tab == "Recommender":
         with col_alpha:
         # 'alpha' sekarang menjadi slider utama, bukan di dalam 'if'
             alpha = st.slider("Bobot Embedding (alpha)", 0.0, 1.0, 0.5, 
-                              help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
-# --- Fuzzy Match (Deteksi Typo) ---
+                             help="0.0 = Hanya kata kunci (TF-IDF), 1.0 = Hanya makna (Embedding)")
+    # --- Fuzzy Match (Deteksi Typo) ---
         cand = None
         if query and not books_df.empty:
         # 1. Dapatkan skor DARI DALAM BLOK INI
@@ -358,7 +361,7 @@ elif tab == "Recommender":
                     # Tangani jika tidak ada hasil
                         st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
     # ------- Clusters -------
-elif tab == "Clusters":
+    elif tab == "Clusters":
         st.header("Jelajahi Cluster Buku (K-Means)")
     
         if books_df.empty:
@@ -407,8 +410,8 @@ elif tab == "Clusters":
                 1: "Fiction",
                 2: "Juvenile Fiction",
                 3: "Other",
-            # ... tambahkan sesuai jumlah 'k' Anda
-        }
+                # ... tambahkan sesuai jumlah 'k' Anda
+            }
         
         # Ambil cluster unik dari data yang sudah diprediksi
             unique_clusters = sorted(books_df['cluster'].unique())
@@ -427,7 +430,7 @@ elif tab == "Clusters":
             st.dataframe(books_df[books_df['cluster'] == selected_cluster][['title', 'authors', 'categories']].head(50), 
                          use_container_width=True)
     # ------- About -------
-elif tab == "About":
+    elif tab == "About":
         st.header("Tentang Aplikasi Ini")
         st.write("Aplikasi portofoli saya buat sendiri. terinspirasi dari pengalaman saya menggunakan website / OPAC di perpustakaan. saya menggunakanTF-IDF, embeddings, KNN, dan KMeans untuk rekomendasi buku.")
         st.write("referensi: Devika, P. V., Jyothisree, K., Rahul, P. V., Arjun, S., & Narayanan, J. (2021, July). Book recommendation system. In 2021 12th International Conference on Computing Communication and Networking Technologies (ICCCNT) (pp. 1-5). IEEE.")
@@ -437,31 +440,3 @@ elif tab == "About":
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
