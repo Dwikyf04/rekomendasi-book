@@ -358,48 +358,77 @@ else:
                     # Tangani jika tidak ada hasil
                         st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
     # ------- Clusters -------
-    elif tab == "Clusters":
-        st.header("📂 K-Means Clustering")
-        if books_df.empty:
-            st.warning("Dataset tidak tersedia.")
-        else:
-            k = st.slider("Jumlah clusters (k)", 2, 20, 6)
-            if st.button("Bangun/Bangun Ulang KMeans"):
-                if tfidf is None:
-                    st.error("Model TF-IDF dibutuhkan untuk membangun cluster.")
-                else:
-                    try:
-                        with st.spinner("Menghitung TF-IDF Matrix..."):
-                            X = tfidf.transform(books_df['text'].fillna('').tolist())
-                        with st.spinner(f"Melatih K-Means dengan k={k}..."):
-                            km = KMeans(n_clusters=k, random_state=42, n_init=10)
-                            labels = km.fit_predict(X)
-                        
-                        books_df['cluster'] = labels
-                        os.makedirs(MODELS_DIR, exist_ok=True)
-                        joblib.dump(km, os.path.join(MODELS_DIR, "kmeans_model.pkl"))
-                        st.success(f"KMeans (k={k}) dibangun dan disimpan ke models/kmeans_model.pkl")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error K-Means: {e}")
-            
-            cluster_labels = None
-            if 'cluster' in books_df.columns:
-                 cluster_labels = books_df['cluster']
-            elif kmeans_model and tfidf:
-                try:
-                    X = tfidf.transform(books_df['text'].fillna('').tolist())
-                    cluster_labels = kmeans_model.predict(X)
-                    books_df['cluster'] = cluster_labels
-                except Exception:
-                    st.info("Cluster default dari model tidak dapat dimuat.")
+   elif tab == "Clusters":
+    st.header("📂 Jelajahi Cluster Buku (K-Means)")
+    
+    if books_df.empty:
+        st.warning("Dataset tidak tersedia.")
+    
+    # Periksa apakah model & matriks (dari load_models) sudah siap
+    elif tfidf_matrix is None or kmeans_model is None:
+        st.error("Model K-Means atau TF-IDF Matrix tidak dimuat. Fitur ini tidak tersedia.")
+    
+    else:
+        with st.spinner("Menganalisis dan memprediksi cluster... ⏳"):
+            try:
+                # 1. Gunakan model yang SUDAH DIMUAT untuk memprediksi
+                # Ini jauh lebih cepat daripada melatih ulang
+                cluster_labels = kmeans_model.predict(tfidf_matrix)
+                books_df['cluster'] = cluster_labels
+            except Exception as e:
+                st.error(f"Gagal memprediksi cluster: {e}")
+                # Hentikan eksekusi jika prediksi gagal
+                st.stop() 
 
-            if cluster_labels is not None:
-                st.write(books_df.groupby('cluster').size().reset_index(name='count'))
-                sel = st.selectbox("Pilih cluster", sorted(books_df['cluster'].unique()))
-                st.dataframe(books_df[books_df['cluster']==sel][['title','authors','categories']].head(50))
+        # --- Tampilkan Visualisasi (Grafik Batang) ---
+        st.subheader("Distribusi Buku per Cluster")
+        cluster_counts = books_df["cluster"].value_counts().reset_index()
+        cluster_counts.columns = ["Cluster", "Jumlah Buku"]
+        
+        try:
+            # Gunakan Plotly (jika sudah diimpor) untuk grafik interaktif
+            import plotly.express as px
+            fig = px.bar(cluster_counts.sort_values('Cluster'), 
+                         x="Cluster", 
+                         y="Jumlah Buku",
+                         color="Cluster", 
+                         title="Distribusi Buku per Cluster")
+            st.plotly_chart(fig, use_container_width=True)
+        except ImportError:
+            # Fallback ke bar_chart bawaan Streamlit jika plotly tidak ada
+            st.bar_chart(cluster_counts.set_index('Cluster'))
 
+        # --- Tampilkan Penjelajah Cluster (DataFrame) ---
+        st.subheader("Jelajahi Isi Cluster")
+        
+        # Buat nama cluster (opsional tapi sangat disarankan)
+        # SESUAIKAN NAMA INI dengan hasil analisis Anda
+        cluster_names = {
+            0: "Fiksi & Sastra",
+            1: "Teknis & Sains",
+            2: "Self-Help & Bisnis",
+            3: "Biografi & Sejarah",
+            4: "Fiksi Ilmiah & Fantasi",
+            5: "Misteri & Thriller",
+            # ... tambahkan sesuai jumlah 'k' Anda
+        }
+        
+        # Ambil cluster unik dari data yang sudah diprediksi
+        unique_clusters = sorted(books_df['cluster'].unique())
+        
+        # Buat label yang lebih deskriptif untuk selectbox
+        display_options = [f"Cluster {i}: {cluster_names.get(i, 'Umum')}" for i in unique_clusters]
+        
+        # Tampilkan selectbox
+        selected_display_name = st.selectbox("Pilih cluster untuk dijelajahi:", display_options)
+        
+        # Dapatkan angka cluster dari nama yang dipilih
+        selected_cluster_index = display_options.index(selected_display_name)
+        selected_cluster = unique_clusters[selected_cluster_index]
 
+        # Tampilkan DataFrame untuk cluster yang dipilih
+        st.dataframe(books_df[books_df['cluster'] == selected_cluster][['title', 'authors', 'categories']].head(50), 
+                     use_container_width=True)
     # ------- About -------
     elif tab == "About":
         st.header("Tentang Aplikasi Ini")
@@ -411,6 +440,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
