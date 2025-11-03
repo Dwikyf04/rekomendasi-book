@@ -255,7 +255,7 @@ else:
     #tab = st.selectbox("", ["Home", "Recommender", "Clusters", "Upload Data", "About"])
 
     # ------- Home -------
-    if tab == "Home":
+if tab == "Home":
         if not books_df.empty:
             st.write(f"Dataset: {len(books_df)} buku")
             st.dataframe(books_df[['title','authors','categories']].head(8))
@@ -265,7 +265,7 @@ else:
     # ------- Recommender -------
     # GANTI SELURUH BLOK 'elif tab == "Recommender":' DENGAN INI
 
-    elif tab == "Recommender":
+elif tab == "Recommender":
         st.header("🔎 Book Recommender")
         st.markdown("Cari buku anda.")
     
@@ -358,7 +358,7 @@ else:
                     # Tangani jika tidak ada hasil
                         st.info("Tidak ada buku yang cocok dengan kriteria Anda.")
     # ------- Clusters -------
-   elif tab == "Clusters":
+elif tab == "Clusters":
         st.header("Jelajahi Cluster Buku (K-Means)")
     
         if books_df.empty:
@@ -437,6 +437,7 @@ else:
 # Footer (diletakkan di luar 'else' agar selalu tampil)
 st.markdown("---")
 st.caption("© Nanda — Book Recommender Portfolio. Gunakan secara bertanggung jawab.")
+
 
 
 
